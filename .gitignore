@@ -1,0 +1,70 @@
+# =========================================
+# 🌦️ Climatescope Project - .gitignore
+# =========================================
+
+# --- Python cache & build files ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.py.class
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+
+# --- Virtual environment ---
+venv/
+.env/
+.env.bak/
+.venv/
+
+# --- Jupyter notebook checkpoints ---
+.ipynb_checkpoints/
+
+# --- OS-specific junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs and temporary files ---
+*.log
+*.tmp
+*.bak
+*.swp
+
+# --- Data & cache files ---
+data/raw/*
+data/processed/*
+!data/README.md          # (optional: keep a small placeholder if needed)
+
+# --- Streamlit and cache directories ---
+.streamlit/
+**/.streamlit/
+.streamlit/secrets.toml
+.streamlit/config.toml
+~$*
+
+# --- IDE / editor specific ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- Reports, plots, and outputs ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.csv
+*.parquet
+
+# --- Test / temp notebooks ---
+notebooks/*-checkpoint.ipynb
+notebooks/.ipynb_checkpoints/
+notebooks/temp_*.ipynb
+
+# --- Project metadata ---
+README.md
