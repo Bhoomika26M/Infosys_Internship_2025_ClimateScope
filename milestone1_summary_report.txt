@@ -1,0 +1,125 @@
+================================================================================
+CLIMATESCOPE - MILESTONE 1: DATA PREPARATION SUMMARY
+================================================================================
+
+Generated: 2025-10-29 18:49:03
+
+
+1. DATASET OVERVIEW
+----------------------------------------
+Original Shape: 103,283 rows × 41 columns
+Cleaned Shape: 103,283 rows × 41 columns
+Rows Removed: 0
+
+
+2. DATA SCHEMA
+----------------------------------------
+country: object
+location_name: object
+latitude: float64
+longitude: float64
+timezone: datetime64[ns]
+last_updated_epoch: datetime64[ns]
+last_updated: datetime64[ns]
+temperature_celsius: float64
+temperature_fahrenheit: float64
+condition_text: object
+wind_mph: float64
+wind_kph: float64
+wind_degree: int64
+wind_direction: object
+pressure_mb: float64
+pressure_in: float64
+precip_mm: float64
+precip_in: float64
+humidity: int64
+cloud: int64
+feels_like_celsius: float64
+feels_like_fahrenheit: float64
+visibility_km: float64
+visibility_miles: float64
+uv_index: float64
+gust_mph: float64
+gust_kph: float64
+air_quality_carbon_monoxide: float64
+air_quality_ozone: float64
+air_quality_nitrogen_dioxide: float64
+air_quality_sulphur_dioxide: float64
+air_quality_pm2.5: float64
+air_quality_pm10: float64
+air_quality_us-epa-index: int64
+air_quality_gb-defra-index: int64
+sunrise: object
+sunset: object
+moonrise: object
+moonset: object
+moon_phase: object
+moon_illumination: int64
+
+
+3. DATA QUALITY ISSUES
+----------------------------------------
+No missing values detected.
+
+
+4. KEY VARIABLES
+----------------------------------------
+Numerical Variables:
+  - latitude
+  - longitude
+  - temperature_celsius
+  - temperature_fahrenheit
+  - wind_mph
+  - wind_kph
+  - wind_degree
+  - pressure_mb
+  - pressure_in
+  - precip_mm
+  - precip_in
+  - humidity
+  - cloud
+  - feels_like_celsius
+  - feels_like_fahrenheit
+  - visibility_km
+  - visibility_miles
+  - uv_index
+  - gust_mph
+  - gust_kph
+  - air_quality_carbon_monoxide
+  - air_quality_ozone
+  - air_quality_nitrogen_dioxide
+  - air_quality_sulphur_dioxide
+  - air_quality_pm2.5
+  - air_quality_pm10
+  - air_quality_us-epa-index
+  - air_quality_gb-defra-index
+  - moon_illumination
+
+Categorical Variables:
+  - country (211 unique values)
+  - location_name (254 unique values)
+  - condition_text (47 unique values)
+  - wind_direction (16 unique values)
+  - sunrise (458 unique values)
+  - sunset (544 unique values)
+  - moonrise (1441 unique values)
+  - moonset (1441 unique values)
+  - moon_phase (8 unique values)
+
+
+5. PREPROCESSING STEPS COMPLETED
+----------------------------------------
+✓ Missing values handled (interpolation/median/mode filling)
+✓ Duplicate rows removed
+✓ Column names standardized
+✓ Data types converted appropriately
+✓ Outliers detected and documented
+
+
+6. SUCCESS CRITERIA
+----------------------------------------
+✓ Dataset successfully downloaded and loaded
+✓ Data cleaned and transformed into usable format
+✓ Ready for analysis in Milestone 2
+
+================================================================================
