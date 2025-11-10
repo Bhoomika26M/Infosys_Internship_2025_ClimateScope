@@ -22,3 +22,14 @@ raw/
 
 # Jupyter
 .ipynb_checkpoints/
+# Streamlit cache and config
+.streamlit/
+.cache/
+
+# IDE and project metadata
+.vscode/
+.idea/
+
+# Logs / temporary files
+*.log
+*.tmp
