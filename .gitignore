@@ -1,0 +1,35 @@
+# Python env & cache
+venv/
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Ignore raw data
+data/
+raw/
+
+# Ignore large CSVs by default
+*.csv
+
+# BUT keep your deliverables (processed & reports)
+!processed/
+!processed/cleaned_weather.csv
+!reports/
+!reports/*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+# Streamlit cache and config
+.streamlit/
+.cache/
+
+# IDE and project metadata
+.vscode/
+.idea/
+
+# Logs / temporary files
+*.log
+*.tmp
