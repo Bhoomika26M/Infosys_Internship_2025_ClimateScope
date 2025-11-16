@@ -1,7 +1,7 @@
 # Infosys_Internship_2025_ClimateScope
 
 
-# ** Final Dashboard Structure:ClimateScope Analysis **
+#  Final Dashboard Structure:ClimateScope Analysis 
     This platform represents the full completion of the core visualization phase of the ClimateScope project. It's a stable, professional, and feature-rich analytical system designed for deep insight into global climate patterns. The entire application is organized around five main pages accessible via the sidebar, with specialized analytical modules housed within internal tabs.
 ## 1. 🏠 Executive Dashboard : Global Overview
     Purpose:
