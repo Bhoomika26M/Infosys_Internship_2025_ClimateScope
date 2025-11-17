@@ -44,7 +44,14 @@ Purpose:
    Purpose:
     Serves as the comprehensive documentation, ensuring user understanding and project transparency.Content: Details the structure of the two-level navigation system, explains the function of the sidebar filters, outlines all Chart Interactivity controls (Zoom, Pan, Download), and provides full transparency regarding the Data Source and Scope (date range, geographical reach, and hourly frequency).                          
   ##  6. To Run the App
-   To Run the dasbard use the command- >streamlit run app.py
+  Install dependencies
+        pip install -r requirements.txt
+
+  Run the Streamlit app
+        streamlit run app.py
+
+  This opens your app at:
+        http://localhost:8501        
    
     
     
