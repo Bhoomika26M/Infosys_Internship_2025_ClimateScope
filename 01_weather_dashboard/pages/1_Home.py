@@ -7,9 +7,18 @@ import altair as alt
 import requests
 import pycountry_convert as pc
 
+from components.sidebar_filters import sidebar_location_filters
 
+from components.data_loader import get_global_data
+df = get_global_data()
 
-#st.set_page_config(page_title="Home | Global Weather Tracker", page_icon="🏠", layout="wide")
+# Apply sidebar filters
+filtered_df = sidebar_location_filters(df)
+df_filtered = filtered_df
+
+selected_continents = st.session_state.get("continent", [])
+selected_countries = st.session_state.get("country", [])
+selected_locations = st.session_state.get("location", [])
 
 # ===============================
 # 🎨 Styled Sidebar Navigation
@@ -177,14 +186,14 @@ st.set_page_config(
 # 🔧 Hide Streamlit top-right menu & deploy button
 hide_streamlit_style = """
     <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;} 
+        footer {visibility: hidden;} 
+        header [data-testid="stHeader"] div:nth-child(2) {display: none;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
+def styled_header(text, level=2, color="rgb(255, 140, 66)", size=32):
     html = f"""
         <h{level} style='
             color: {color};
@@ -257,85 +266,6 @@ def apply_plotly_theme(fig):
     return fig
 
 # ============================
-# Data Loading & Caching
-# ============================
-@st.cache_data
-def load_and_process_data():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(script_dir, "../../data/processed/processed_weather_data.csv")
-
-    try:
-        df = pd.read_csv(csv_path, parse_dates=["last_updated"])
-    except FileNotFoundError:
-        st.error(f"""
-            **ERROR: Data file not found.**
-            Please ensure `processed_weather_data.csv` is in the same directory as `app.py`.
-            *Directory Searched:* `{script_dir}`
-        """)
-        st.stop()
-
-    df.columns = [col.strip() for col in df.columns]
-    df['continent'] = df['country'].apply(get_continent_from_country)
-    df['latitude'] = pd.to_numeric(df['latitude'], errors='coerce')
-    df['longitude'] = pd.to_numeric(df['longitude'], errors='coerce')
-    df.dropna(subset=['latitude', 'longitude'], inplace=True)
-    return df
-
-df = load_and_process_data()
-
-
-# ============================
-# User Location Detection
-# ============================
-@st.cache_data
-def get_user_location():
-    try:
-        ip_info = requests.get('https://ipinfo.io', timeout=5).json()
-        country_code = ip_info.get('country')
-        user_country = pc.country_alpha2_to_country_name(country_code)
-        user_continent = get_continent_from_country(user_country)
-        return user_continent, user_country
-    except Exception:
-        return "North America", "United States"
-
-user_continent, user_country = get_user_location()
-
-# ============================
-# Sidebar & Filters
-# ============================
-with st.sidebar:
-    #st.markdown("<h1 style='font-size: 24px;'>🌍 Dashboard Controls</h1>", unsafe_allow_html=True)
-    #st.markdown("---")
-    st.markdown("### 📍 Global Geographic Filters")
-
-    unique_continents = sorted(df['continent'].unique())
-    selected_continents = st.multiselect(
-        "Continents",
-        options=unique_continents,
-        default=[user_continent] if user_continent in unique_continents else []
-    )
-
-    if selected_continents:
-        countries_in_selected_continents = sorted(df[df['continent'].isin(selected_continents)]['country'].unique())
-        default_country = [user_country] if user_country in countries_in_selected_continents else []
-        selected_countries = st.multiselect(
-            "Countries",
-            options=countries_in_selected_continents,
-            default=default_country
-        )
-    else:
-        selected_countries = []
-
-    st.markdown("---")
-    st.markdown("### 🌡️ Global Weather Filters")
-
-    aqi_options = {1: 'Good', 2: 'Moderate', 3: 'Unhealthy (SG)', 4: 'Unhealthy', 5: 'Very Unhealthy', 6: 'Hazardous'}
-    selected_aqi_level = st.select_slider("Max Air Quality Index (US EPA)", options=list(aqi_options.keys()), value=6, format_func=lambda x: aqi_options[x])
-
-    min_temp, max_temp = int(df['temperature_celsius'].min()), int(df['temperature_celsius'].max())
-    temp_range = st.slider("Temperature Range (°C)", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
-
-# ============================
 # Main Dashboard Content
 # ============================
 st.markdown("""
@@ -375,23 +305,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-
-
-
-if not selected_countries:
-    st.warning("Please select at least one country in the sidebar to view data.")
-    st.stop()
-
-df_filtered = df[
-    (df['country'].isin(selected_countries)) &
-    (df['air_quality_us-epa-index'] <= selected_aqi_level) &
-    (df['temperature_celsius'].between(temp_range[0], temp_range[1]))
-]
-
 if df_filtered.empty:
-    st.warning("No data available for the selected filters. Please broaden your criteria.")
+    st.warning("No data available for the selected filters.")
     st.stop()
-
 
 # ===========================
 # 🎯 KPI Section
@@ -806,6 +722,18 @@ with tab4:
 
 # --- TAB 5: Air Quality ---
 with tab5:
+
+    # =========================
+    # 🌫️ AQI Category Mapping
+    # =========================
+    aqi_options = {
+        1: "Good",
+        2: "Moderate",
+        3: "Unhealthy for Sensitive Groups",
+        4: "Unhealthy",
+        5: "Very Unhealthy",
+        6: "Hazardous"
+    }
     st.markdown("##### Filter Countries and Locations for this Tab")
     tab5_countries = st.multiselect(
         "Select countries:",
@@ -977,3 +905,4 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+

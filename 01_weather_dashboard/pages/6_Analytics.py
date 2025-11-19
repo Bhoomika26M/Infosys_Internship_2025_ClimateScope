@@ -4,7 +4,23 @@ import plotly.express as px
 import pycountry_convert as pc
 import requests
 
+# ✅ Access global dataset and filters
+from components.data_loader import get_global_data
+from components.sidebar_filters import sidebar_location_filters
 
+# -----------------------------
+# 📦 Load global dataset once
+# -----------------------------
+df = get_global_data()
+
+# -----------------------------
+# 🌍 Sidebar Filters (shared)
+# -----------------------------
+df_filtered = sidebar_location_filters(df)
+
+selected_continents = st.session_state.get("continent", [])
+selected_countries = st.session_state.get("country", [])
+selected_locations = st.session_state.get("location", [])
 
 # ===============================
 # 🎨 Styled Sidebar Navigation
@@ -92,14 +108,14 @@ st.set_page_config(
 # 🔧 Hide Streamlit top-right menu & deploy button
 hide_streamlit_style = """
     <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;} 
+        footer {visibility: hidden;} 
+        header [data-testid="stHeader"] div:nth-child(2) {display: none;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
+def styled_header(text, level=2, color="rgb(255, 140, 66)", size=30):
     html = f"""
         <h{level} style='
             color: {color};
@@ -108,7 +124,7 @@ def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
             text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
             font-family: "Segoe UI", sans-serif;
             margin-top: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 0px;
         '>
             {text}
         </h{level}>
@@ -122,328 +138,191 @@ def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
 # ==========================
 st.set_page_config(page_title="Analytics & Trends", page_icon="📈", layout="wide")
 
-# ==========================
-# Load data
-# ==========================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("../data/processed/processed_weather_data.csv", parse_dates=["last_updated"])
-    df.columns = [col.strip() for col in df.columns]
-
-    # --- Add continent column dynamically ---
-    if 'country' in df.columns:
-        def get_continent(country_name):
-            try:
-                country_alpha2 = pc.country_name_to_country_alpha2(country_name)
-                continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
-                continent_map = {
-                    'AF': 'Africa', 'AS': 'Asia', 'EU': 'Europe',
-                    'NA': 'North America', 'OC': 'Oceania',
-                    'SA': 'South America', 'AN': 'Antarctica'
-                }
-                return continent_map.get(continent_code, 'Unknown')
-            except:
-                return 'Unknown'
-        df['continent'] = df['country'].apply(get_continent)
-    else:
-        df['continent'] = 'Unknown'
-
-    return df
 
 
-df = load_data()
-
-# ==========================
-# Detect User Country and Set Defaults
-# ==========================
-def get_user_country_and_continent():
-    try:
-        ip_info = requests.get('https://ipinfo.io').json()
-        country_code = ip_info.get('country', None)
-        if country_code:
-            country_name = pc.country_alpha2_to_country_name(country_code)
-            continent_code = pc.country_alpha2_to_continent_code(country_code)
-            continent_map = {
-                'AF': 'Africa', 'AS': 'Asia', 'EU': 'Europe', 'NA': 'North America',
-                'OC': 'Oceania', 'SA': 'South America', 'AN': 'Antarctica'
-            }
-            continent_name = continent_map.get(continent_code, 'Unknown')
-            return country_name, continent_name
-    except:
-        pass
-    return "India", "Asia"  # fallback
-
-default_country, default_continent = get_user_country_and_continent()
-
-# ==========================
-# Sidebar Filters (Like Air Quality)
-# ==========================
-st.sidebar.header("📍 Global Geographic Filters")
-
-# --- Continent Filter ---
-continents = sorted(df['continent'].unique())
-select_all_cont = st.sidebar.checkbox("Select All Continents", value=False)
-if select_all_cont:
-    selected_continents = continents
-else:
-    selected_continents = st.sidebar.multiselect(
-        "Select Continent(s)",
-        options=continents,
-        default=[default_continent] if default_continent in continents else [continents[0]]
-    )
-
-# --- Country Filter ---
-countries_in_selected_cont = sorted(df[df['continent'].isin(selected_continents)]['country'].unique())
-select_all_countries = st.sidebar.checkbox("Select All Countries", value=False)
-if select_all_countries:
-    selected_countries = countries_in_selected_cont
-else:
-    selected_countries = st.sidebar.multiselect(
-        "Select Country(s)",
-        options=countries_in_selected_cont,
-        default=[default_country] if default_country in countries_in_selected_cont else [countries_in_selected_cont[0]]
-    )
-
-# --- Location Filter ---
-locations_in_selected_countries = sorted(df[df['country'].isin(selected_countries)]['location_name'].unique())
-select_all_locations = st.sidebar.checkbox("Select All Locations", value=True)
-if select_all_locations:
-    selected_locations = locations_in_selected_countries
-else:
-    selected_locations = st.sidebar.multiselect(
-        "Select Location(s)",
-        options=locations_in_selected_countries,
-        default=locations_in_selected_countries
-    )
-
-# --- Filtered data ---
-filtered_df = df[
-    df["continent"].isin(selected_continents) &
-    df["country"].isin(selected_countries) &
-    df["location_name"].isin(selected_locations)
-]
-
-# ==========================
-# ✅ Numeric Filters (Keep as-is)
-# ==========================
-
-# Temperature
+# Numeric Filters
 temp_min, temp_max = st.sidebar.slider(
-    "🌡️ Temperature Range (°C)", float(df["temperature_celsius"].min()), float(df["temperature_celsius"].max()),
+    "🌡️ Temperature Range (°C)",
+    float(df["temperature_celsius"].min()), float(df["temperature_celsius"].max()),
     (float(df["temperature_celsius"].min()), float(df["temperature_celsius"].max()))
 )
-filtered_df = filtered_df[
-    (filtered_df["temperature_celsius"] >= temp_min) &
-    (filtered_df["temperature_celsius"] <= temp_max)
-]
 
-# Humidity
 humidity_min, humidity_max = st.sidebar.slider(
-    "💧 Humidity Range (%)", float(df["humidity"].min()), float(df["humidity"].max()),
+    "💧 Humidity Range (%)",
+    float(df["humidity"].min()), float(df["humidity"].max()),
     (float(df["humidity"].min()), float(df["humidity"].max()))
 )
-filtered_df = filtered_df[
-    (filtered_df["humidity"] >= humidity_min) &
-    (filtered_df["humidity"] <= humidity_max)
-]
 
-# Wind Speed
 wind_min, wind_max = st.sidebar.slider(
-    "🌬️ Wind Speed (mph)", float(df["wind_mph"].min()), float(df["wind_mph"].max()),
+    "🌬️ Wind Speed (mph)",
+    float(df["wind_mph"].min()), float(df["wind_mph"].max()),
     (float(df["wind_mph"].min()), float(df["wind_mph"].max()))
 )
-filtered_df = filtered_df[
-    (filtered_df["wind_mph"] >= wind_min) &
-    (filtered_df["wind_mph"] <= wind_max)
+
+# ==========================
+# Filtered DataFrame
+# ==========================
+filtered_df = df[
+    df['continent'].isin(selected_continents) &
+    df['country'].isin(selected_countries) &
+    df['location_name'].isin(selected_locations) &
+    (df['temperature_celsius'] >= temp_min) &
+    (df['temperature_celsius'] <= temp_max) &
+    (df['humidity'] >= humidity_min) &
+    (df['humidity'] <= humidity_max) &
+    (df['wind_mph'] >= wind_min) &
+    (df['wind_mph'] <= wind_max)
 ]
 
+filtered_df['last_updated'] = pd.to_datetime(filtered_df['last_updated'], errors='coerce')
 
-# ===============================
-# Sidebar Filters (Continue after Wind)
-# ===============================
-st.sidebar.markdown("---")
-st.sidebar.subheader("🌦️ Additional Weather Filters")
+# ==========================
+# Page Content Header
+# ==========================
+st.markdown("""
+    <h1 style='text-align: center; color: #FF4B4B; font-size: 48px; font-family: "Segoe UI", sans-serif;margin-top: -50px;'>
+        📈 Weather Analytics & Trends
+    </h1>
+""", unsafe_allow_html=True)
 
-filters = {}
 
-# UV Index Filter
-if "uv_index" in df.columns:
-    uv_min, uv_max = float(df["uv_index"].min()), float(df["uv_index"].max())
-    filters["uv_min"], filters["uv_max"] = st.sidebar.slider(
-        "UV Index Range",
-        min_value=uv_min,
-        max_value=uv_max,
-        value=(uv_min, uv_max),
-        step=0.1
-    )
-
-# Precipitation Filter
-if "precip_mm" in df.columns:
-    precip_min, precip_max = float(df["precip_mm"].min()), float(df["precip_mm"].max())
-    filters["precip_min"], filters["precip_max"] = st.sidebar.slider(
-        "Precipitation (mm) Range",
-        min_value=precip_min,
-        max_value=precip_max,
-        value=(precip_min, precip_max),
-        step=0.1
-    )
-
-# Visibility Filter
-if "visibility_km" in df.columns:
-    visibility_min, visibility_max = float(df["visibility_km"].min()), float(df["visibility_km"].max())
-    filters["visibility_min"], filters["visibility_max"] = st.sidebar.slider(
-        "Visibility (km) Range",
-        min_value=visibility_min,
-        max_value=visibility_max,
-        value=(visibility_min, visibility_max),
-        step=0.1
-    )
-
-# Air Quality Index Filter
-if "air_quality_us-epa-index" in df.columns:
-    air_min, air_max = int(df["air_quality_us-epa-index"].min()), int(df["air_quality_us-epa-index"].max())
-    filters["air_quality_us-epa_min"], filters["air_quality_us-epa_max"] = st.sidebar.slider(
-        "Air Quality Index (US EPA)",
-        min_value=air_min,
-        max_value=air_max,
-        value=(air_min, air_max),
-        step=1
-    )
-
-# ===============================
-# Apply filters to DataFrame
-# ===============================
-if "uv_index" in filtered_df.columns:
-    filtered_df = filtered_df[
-        (filtered_df["uv_index"] >= filters["uv_min"]) &
-        (filtered_df["uv_index"] <= filters["uv_max"])
-    ]
-
-if "precip_mm" in filtered_df.columns:
-    filtered_df = filtered_df[
-        (filtered_df["precip_mm"] >= filters["precip_min"]) &
-        (filtered_df["precip_mm"] <= filters["precip_max"])
-    ]
-
-if "visibility_km" in filtered_df.columns:
-    filtered_df = filtered_df[
-        (filtered_df["visibility_km"] >= filters["visibility_min"]) &
-        (filtered_df["visibility_km"] <= filters["visibility_max"])
-    ]
-
-if "air_quality_us-epa-index" in filtered_df.columns:
-    filtered_df = filtered_df[
-        (filtered_df["air_quality_us-epa-index"] >= filters["air_quality_us-epa_min"]) &
-        (filtered_df["air_quality_us-epa-index"] <= filters["air_quality_us-epa_max"])
-    ]
-
+st.markdown("""<h6 style=
+            'font-size: 16px;
+            font-weight: 200;
+            color: #A0A0A0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-family: "Segoe UI", sans-serif;
+            text-align:center;
+            margin-bottom: 20px;
+        '>
+Analyze temperature, humidity, wind, UV, and air quality trends over time.
+</h6>""", unsafe_allow_html=True)
 
 
 # ==========================
-# Page content
+# Main Dashboard Radio Buttons
 # ==========================
-st.title("📈 Weather Analytics & Trends")
-st.caption("Analyze temperature, humidity, wind, UV, and air quality trends over time.")
+st.markdown("### Dashboard Controls")
 
+col1, col2 = st.columns(2) 
+
+with col1:
+    agg_level = st.radio(
+        "Aggregation Level",
+        ["Continent", "Country", "Location"],
+        index=1  # Default = "Country"
+    )
+
+with col2:
+    time_aggregation = st.radio(
+        "Time Aggregation",
+        ["Yearly", "Monthly", "Weekly", "Daily"],
+        index=2  # Default = "Weekly"
+    )
+
+
+# ==========================
+# Prepare Data for Plotting
+# ==========================
 if filtered_df.empty:
     st.warning("No data available for the selected filters.")
 else:
-    # -------------------
-    # Time series of Temperature
-    # -------------------
-    st.subheader("🌡️ Temperature Trends Over Time")
+    df_plot = filtered_df.copy()
+
+    # Determine group column based on aggregation level
+    if agg_level == "Continent":
+        group_col = 'continent'
+    elif agg_level == "Country":
+        group_col = 'country'
+    else:
+        group_col = 'location_name'
+
+    # Time aggregation
+    if time_aggregation == "Daily":
+        df_plot['time_period'] = df_plot['last_updated'].dt.date
+    elif time_aggregation == "Weekly":
+        df_plot['time_period'] = df_plot['last_updated'].dt.to_period("W").apply(lambda r: r.start_time)
+    elif time_aggregation == "Monthly":
+        df_plot['time_period'] = df_plot['last_updated'].dt.to_period("M").apply(lambda r: r.start_time)
+    elif time_aggregation == "Yearly":
+        df_plot['time_period'] = df_plot['last_updated'].dt.year
+
+
+    numeric_cols = df_plot.select_dtypes(include='number').columns.tolist()
+
+    df_agg = df_plot.groupby(
+        ['time_period', group_col], as_index=False
+    )[numeric_cols].mean()
+
+    # ==========================
+    # Plot Graphs
+    # ==========================
+    styled_header("🌡️ Temperature Trend")
     fig_temp = px.line(
-        filtered_df,
-        x="last_updated",
-        y="temperature_celsius",
-        color="country",
-        title="Temperature Trend (°C) by Country",
-        labels={"temperature_celsius": "Temperature (°C)", "last_updated": "Date"},
+        df_agg,
+        x='time_period',
+        y='temperature_celsius',
+        color=group_col,
+        title=f"Temperature Trend ({agg_level}, {time_aggregation})",
         template="plotly_white"
     )
     st.plotly_chart(fig_temp, use_container_width=True)
 
-    # -------------------
-    # Humidity Trends
-    # -------------------
-    st.subheader("💧 Humidity Trends Over Time")
+    styled_header("💧 Humidity Trend")
     fig_hum = px.line(
-        filtered_df,
-        x="last_updated",
-        y="humidity",
-        color="country",
-        title="Humidity Trend (%) by Country",
-        labels={"humidity": "Humidity (%)", "last_updated": "Date"},
+        df_agg,
+        x='time_period',
+        y='humidity',
+        color=group_col,
+        title=f"Humidity Trend ({agg_level}, {time_aggregation})",
         template="plotly_white"
     )
     st.plotly_chart(fig_hum, use_container_width=True)
 
-    # -------------------
-    # Wind Distribution
-    # -------------------
-    st.subheader("🌬️ Wind Speed Distribution")
-    fig_wind = px.box(
-        filtered_df,
-        x="country",
-        y="wind_mph",
-        color="country",
-        title="Wind Speed Variation (mph) by Country",
-        labels={"wind_mph": "Wind Speed (mph)"},
+    styled_header("🌬️ Wind Speed Trend")
+    fig_wind = px.line(
+        df_agg,
+        x='time_period',
+        y='wind_mph',
+        color=group_col,
+        title=f"Wind Speed Trend ({agg_level}, {time_aggregation})",
         template="plotly_white"
     )
     st.plotly_chart(fig_wind, use_container_width=True)
 
-    # -------------------
-    # Air Quality Comparison (if available)
-    # -------------------
-    if "air_quality_us-epa-index" in filtered_df.columns:
-        st.subheader("🌫️ Air Quality Comparison")
-        fig_aqi = px.bar(
-            filtered_df.groupby("country")["air_quality_us-epa-index"].mean().reset_index(),
-            x="country",
-            y="air_quality_us-epa-index",
-            title="Average US AQI by Country",
-            color="air_quality_us-epa-index",
-            color_continuous_scale="reds",
-            template="plotly_white"
-        )
-        st.plotly_chart(fig_aqi, use_container_width=True)
-
-    # -------------------
-    # Correlation heatmap
-    # -------------------
-    st.subheader("📊 Correlation Heatmap")
-    numeric_cols = ["temperature_celsius", "humidity", "wind_mph"]
-    if "air_quality_us-epa-index" in filtered_df.columns:
-        numeric_cols.append("air_quality_us-epa-index")
-    if "uv_index" in filtered_df.columns:
-        numeric_cols.append("uv_index")
-    if "precip_mm" in filtered_df.columns:
-        numeric_cols.append("precip_mm")
-    if "visibility_km" in filtered_df.columns:
-        numeric_cols.append("visibility_km")
-
-    corr = filtered_df[numeric_cols].corr()
-    fig_corr = px.imshow(
-        corr,
-        text_auto=True,
-        color_continuous_scale="RdBu_r",
-        title="Correlation between Weather Metrics"
-    )
-    st.plotly_chart(fig_corr, use_container_width=True)
 
 # ==========================
-# Extreme Weather Tables with Multi-select
+# Extreme Weather Tables with Multi-select & Display Mode
 # ==========================
 st.markdown("---")
-st.subheader("🚨 Extreme Weather Events")
+styled_header("🚨 Extreme Weather Events")
 
 # -------------------
 # User settings
 # -------------------
-top_n = st.slider("Select number of rows to display in top/least metrics:", min_value=3, max_value=20, value=5, step=1)
-highlight_country = st.selectbox("Highlight rows for country:", options=["All"] + sorted(filtered_df['country'].unique()))
-highlight_location = st.selectbox("Highlight rows for location:", options=["All"] + sorted(filtered_df['location_name'].unique()))
+top_n = st.slider(
+    "Select number of rows to display in top/least metrics:",
+    min_value=3, max_value=20, value=5, step=1
+)
+
+highlight_country = st.selectbox(
+    "Highlight rows for country:",
+    options=["All"] + sorted(filtered_df['country'].unique())
+)
+
+highlight_location = st.selectbox(
+    "Highlight rows for location:",
+    options=["All"] + sorted(filtered_df['location_name'].unique())
+)
+
+# -------------------
+# Display Mode
+# -------------------
+display_mode = st.radio(
+    "📊 Display Mode:",
+    options=["Tables Only", "Maps Only", "Both"],
+    index=2
+)
 
 # -------------------
 # Helper functions
@@ -483,10 +362,26 @@ tabs = {
     "Most / Least Polluted": ["air_quality_us-epa-index"]
 }
 
-selected_tabs = st.multiselect("Select Extreme Categories to display:", options=list(tabs.keys()), default=["All Extremes"])
+selected_tabs = st.multiselect(
+    "Select Extreme Categories to display:",
+    options=list(tabs.keys()),
+    default=["All Extremes"]
+)
 
 # -------------------
-# Display tables for selected tabs
+# Metric color scales
+# -------------------
+metric_colors = {
+    "temperature_celsius": "Reds",        
+    "humidity": "Blues",                  
+    "precip_mm": "Greens",               
+    "uv_index": "Purples",                
+    "wind_mph": "Oranges",               
+    "visibility_km": "Greys",             
+    "air_quality_us-epa-index": "Inferno" 
+}
+# -------------------
+# Display tables and/or maps for selected tabs
 # -------------------
 for selected_tab in selected_tabs:
     for metric_name, col_name in [
@@ -498,17 +393,64 @@ for selected_tab in selected_tabs:
         ("Visibility (km)", "visibility_km"),
         ("AQI (Air Quality Index)", "air_quality_us-epa-index")
     ]:
+        # Skip metrics not in selected tab (unless All Extremes)
         if col_name not in tabs[selected_tab] and selected_tab != "All Extremes":
             continue
-        top_df = safe_top(filtered_df, col_name, top_n, ascending=False)
-        least_df = safe_top(filtered_df, col_name, top_n, ascending=True)
 
-        top_df = format_table(top_df[['location_name','country',col_name]], col_name, metric_name)
-        least_df = format_table(least_df[['location_name','country',col_name]], col_name, metric_name)
+        # -------------------
+        # Top / Least tables
+        # -------------------
+        if display_mode in ["Tables Only", "Both"]:
+            top_df = safe_top(filtered_df, col_name, top_n, ascending=False)
+            least_df = safe_top(filtered_df, col_name, top_n, ascending=True)
 
-        st.markdown(f"### 🔝 Top {top_n} {metric_name} Locations")
-        st.dataframe(top_df.style.apply(highlight_rows, axis=1))
-        st.markdown(f"### 🔽 Bottom {top_n} {metric_name} Locations")
-        st.dataframe(least_df.style.apply(highlight_rows, axis=1))
+            top_df = format_table(top_df[['location_name','country',col_name]], col_name, metric_name)
+            least_df = format_table(least_df[['location_name','country',col_name]], col_name, metric_name)
 
+            st.markdown(f"### 🔝 Top {top_n} {metric_name} Locations")
+            st.dataframe(top_df.style.apply(highlight_rows, axis=1))
+            st.markdown(f"### 🔽 Bottom {top_n} {metric_name} Locations")
+            st.dataframe(least_df.style.apply(highlight_rows, axis=1))
 
+        # -------------------
+        # Choropleth Map
+        # -------------------
+        if display_mode in ["Maps Only", "Both"] and col_name in filtered_df.columns:
+            # Aggregate by country
+            map_df = filtered_df.groupby('country', as_index=False)[col_name].mean()
+
+            # Create choropleth map
+            fig_map = px.choropleth(
+                map_df,
+                locations='country',
+                locationmode='country names',
+                color=col_name,
+                color_continuous_scale=metric_colors.get(col_name, 'Viridis'),
+                title=f"🌎 Global {metric_name} Distribution",
+                labels={col_name: metric_name},
+                projection='natural earth',
+            )
+
+            # Update layout for transparent background
+            fig_map.update_layout(
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)', 
+                geo=dict(
+                    bgcolor='rgba(0,0,0,0)',
+                    lakecolor='rgba(0,0,0,0)',
+                    showcoastlines=True,
+                    coastlinecolor='rgba(255,255,255,0.2)',
+                    showland=True,
+                    landcolor='#2A2A2A',
+                    showcountries=True,
+                    countrycolor='rgba(255, 255, 255, 0.2)',
+                ),
+                coloraxis_colorbar=dict(
+                    title=metric_name,
+                    tickfont=dict(color='white'),
+                ),
+                title_font=dict(color='white')
+            )
+
+            st.plotly_chart(fig_map, use_container_width=True)

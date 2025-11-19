@@ -30,3 +30,4 @@ def set_page_style():
     """,
         unsafe_allow_html=True
     )
+

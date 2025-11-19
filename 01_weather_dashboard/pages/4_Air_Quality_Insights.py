@@ -8,7 +8,23 @@ import matplotlib.pyplot as plt
 import requests
 import pycountry_convert as pc
 
+# ✅ Access global dataset and filters
+from components.data_loader import get_global_data
+from components.sidebar_filters import sidebar_location_filters, get_user_country_and_continent
 
+# -----------------------------
+# 📦 Load global dataset once
+# -----------------------------
+df = get_global_data()
+
+# -----------------------------
+# 🌍 Sidebar Filters (shared)
+# -----------------------------
+df_filtered = sidebar_location_filters(df)
+
+selected_continents = st.session_state.get("continent", [])
+selected_countries = st.session_state.get("country", [])
+selected_locations = st.session_state.get("location", [])
 
 # ===============================
 # 🎨 Styled Sidebar Navigation
@@ -94,17 +110,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 🔧 Hide Streamlit top-right menu & deploy button
-hide_streamlit_style = """
-    <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
+def styled_header(text, level=2, color="rgb(255, 140, 66)", size=30):
     html = f"""
         <h{level} style='
             color: {color};
@@ -113,141 +119,28 @@ def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
             text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
             font-family: "Segoe UI", sans-serif;
             margin-top: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 0px;
         '>
             {text}
         </h{level}>
     """
     st.markdown(html, unsafe_allow_html=True)
+
+# 🔧 Hide Streamlit top-right menu & deploy button
+hide_streamlit_style = """
+    <style>
+        #MainMenu {visibility: hidden;} 
+        footer {visibility: hidden;} 
+        header [data-testid="stHeader"] div:nth-child(2) {display: none;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
 
 st.set_page_config(page_title="Air Quality Insights", layout="wide")
 
 
-hide_streamlit_style = """
-    <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=30):
-    html = f"""
-        <h{level} style='
-            color: {color};
-            font-size: {size}px;
-            font-weight: 600;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
-            font-family: "Segoe UI", sans-serif;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        '>
-            {text}
-        </h{level}>
-    """
-    st.markdown(html, unsafe_allow_html=True)
-
-
-# ============================
-# Load Data
-# ============================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("../data/processed/processed_weather_data.csv", parse_dates=["last_updated"])
-    df.columns = [col.strip() for col in df.columns]
-
-    # --- Add continent column dynamically ---
-    if 'country' in df.columns:
-        def get_continent(country_name):
-            try:
-                country_alpha2 = pc.country_name_to_country_alpha2(country_name)
-                continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
-                continent_map = {
-                    'AF': 'Africa',
-                    'AS': 'Asia',
-                    'EU': 'Europe',
-                    'NA': 'North America',
-                    'OC': 'Oceania',
-                    'SA': 'South America',
-                    'AN': 'Antarctica'
-                }
-                return continent_map.get(continent_code, 'Unknown')
-            except:
-                return 'Unknown'
-        df['continent'] = df['country'].apply(get_continent)
-    else:
-        df['continent'] = 'Unknown'
-
-    return df
-
-
-df = load_data()
-
-# ============================
-# Detect User Country and Set Defaults
-# ============================
-def get_user_country_and_continent():
-    try:
-        ip_info = requests.get('https://ipinfo.io').json()
-        country_code = ip_info.get('country', None)
-        if country_code:
-            country_name = pc.country_alpha2_to_country_name(country_code)
-            continent_code = pc.country_alpha2_to_continent_code(country_code)
-            continent_map = {
-                'AF': 'Africa', 'AS': 'Asia', 'EU': 'Europe', 'NA': 'North America',
-                'OC': 'Oceania', 'SA': 'South America', 'AN': 'Antarctica'
-            }
-            continent_name = continent_map.get(continent_code, 'Unknown')
-            return country_name, continent_name
-    except:
-        pass
-    return "India", "Asia"  # fallback
-
-default_country, default_continent = get_user_country_and_continent()
-
-# ============================
-# Sidebar Filters (Smart Defaults + Dynamic Select All)
-# ============================
-st.sidebar.header("📍 Global Geographic Filters")
-
-# --- Continent ---
-continents = sorted(df['continent'].unique())
-select_all_cont = st.sidebar.checkbox("Select All Continents", value=False)
-if select_all_cont:
-    selected_continents = continents
-else:
-    selected_continents = st.sidebar.multiselect(
-        "Select Continent(s)",
-        options=continents,
-        default=[default_continent] if default_continent in continents else [continents[0]]
-    )
-
-# --- Countries ---
-countries_in_selected_cont = sorted(df[df['continent'].isin(selected_continents)]['country'].unique())
-select_all_countries = st.sidebar.checkbox("Select All Countries", value=False)
-if select_all_countries:
-    selected_countries = countries_in_selected_cont
-else:
-    selected_countries = st.sidebar.multiselect(
-        "Select Country(s)",
-        options=countries_in_selected_cont,
-        default=[default_country] if default_country in countries_in_selected_cont else [countries_in_selected_cont[0]]
-    )
-
-# --- Locations ---
-locations_in_selected_countries = sorted(df[df['country'].isin(selected_countries)]['location_name'].unique())
-select_all_locations = st.sidebar.checkbox("Select All Locations", value=True)
-if select_all_locations:
-    selected_locations = locations_in_selected_countries
-else:
-    selected_locations = st.sidebar.multiselect(
-        "Select Location(s)",
-        options=locations_in_selected_countries,
-        default=locations_in_selected_countries  # all initially selected for convenience
-    )
 
 # AQI filter
 aqi_options = {
@@ -305,7 +198,6 @@ st.markdown("""<h6 style='
       max-width: 100%;
         '>
 AQI (Air Quality Index) is a standardized measure used to indicate how clean or polluted the air is, and what associated health effects might be of concern.
-AQI is calculated based on the levels of six major pollutants: PM2.5 (fine particulate matter), PM10 (coarse particulate matter), Carbon monoxide (CO), Sulfur dioxide (SO₂), Nitrogen dioxide (NO₂), Ground-level ozone (O₃)
 </h6>""", unsafe_allow_html=True)
 
 styled_header("PM2.5 and PM10 Value Ranges by Air Quality Category")
@@ -413,9 +305,8 @@ for loc in selected_locations:
     avg_pm25 = loc_df['air_quality_PM2.5'].mean()
     avg_pm10 = loc_df['air_quality_PM10'].mean()
     avg_humidity = loc_df['humidity'].mean()
-    lat = loc_df['latitude'].mean() if 'latitude' in loc_df.columns else None
-    lon = loc_df['longitude'].mean() if 'longitude' in loc_df.columns else None
 
+    # Compute AQI Category dynamically
     aqi_category, color = get_aqi_category(avg_pm25, avg_pm10)
 
     # Apply filter
@@ -425,14 +316,13 @@ for loc in selected_locations:
             "Avg AQI": f"{avg_aqi:.2f}",
             "PM2.5 (µg/m³)": f"{avg_pm25:.2f}",
             "PM10 (µg/m³)": f"{avg_pm10:.2f}",
-            "AQI Category": aqi_category,
+            "AQI Category": aqi_category,  # <-- dynamically added
             "Humidity (%)": f"{avg_humidity:.2f}",
-            "Latitude": lat,
-            "Longitude": lon,
             "Color": color
         })
 
 metrics_df = pd.DataFrame(metrics_list)
+
 
 # Display KPI Table
 st.dataframe(
@@ -815,5 +705,34 @@ else:
 # Raw Data
 # ============================
 st.markdown("---")
-with st.expander("View Raw Filtered Air Quality Data"):
-    st.dataframe(df_filtered.reset_index(drop=True), use_container_width=True)
+
+with st.expander("🌬️ View Filtered Air Quality Data"):
+    air_cols = [
+        "iso_alpha",
+        "continent",
+        "country",
+        "location_name",
+        "last_updated",
+        "condition_text",
+        "air_quality_Carbon_Monoxide",
+        "air_quality_Ozone",
+        "air_quality_Nitrogen_dioxide",
+        "air_quality_Sulphur_dioxide",
+        "air_quality_PM2.5",
+        "air_quality_PM10",
+        "air_quality_us-epa-index",
+        "air_quality_gb-defra-index",
+    ]
+
+    # Keep only columns that are present in the filtered dataframe
+    air_cols_present = [col for col in air_cols if col in df_filtered.columns]
+
+    # Show filtered air-quality data
+    if air_cols_present:
+        st.dataframe(
+            df_filtered[air_cols_present].reset_index(drop=True),
+            use_container_width=True,
+        )
+    else:
+        st.warning("⚠️ No air-quality data columns found in this dataset.")
+

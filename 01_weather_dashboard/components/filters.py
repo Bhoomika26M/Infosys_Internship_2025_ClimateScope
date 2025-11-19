@@ -114,3 +114,4 @@ def filter_panel(df, default_country="India"):
         "air_quality_us-epa_min": air_quality_us_epa_min,
         "air_quality_us-epa_max": air_quality_us_epa_max
     }
+

@@ -18,3 +18,4 @@ def load_data():
             df[col] = None
     
     return df
+

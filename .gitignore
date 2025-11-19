@@ -33,10 +33,6 @@ desktop.ini
 *.bak
 *.swp
 
-# --- Data & cache files ---
-data/raw/*
-data/processed/*
-!data/README.md          # (optional: keep a small placeholder if needed)
 
 # --- Streamlit and cache directories ---
 .streamlit/

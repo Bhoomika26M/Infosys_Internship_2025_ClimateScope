@@ -4,15 +4,28 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
-import pycountry_convert as pc
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, date, time as dtime
-from dateutil import parser
+from datetime import datetime
 import pytz
 
+# ✅ Access global dataset and filters
+from components.data_loader import get_global_data
+from components.sidebar_filters import sidebar_location_filters
 
+# -----------------------------
+# 📦 Load global dataset once
+# -----------------------------
+df = get_global_data()
+
+# -----------------------------
+# 🌍 Sidebar Filters (shared)
+# -----------------------------
+df_filtered = sidebar_location_filters(df)
+
+selected_continents = st.session_state.get("continent", [])
+selected_countries = st.session_state.get("country", [])
+selected_locations = st.session_state.get("location", [])
 
 # ===============================
 # 🎨 Styled Sidebar Navigation
@@ -87,54 +100,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-hide_streamlit_style = """
-    <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
-    html = f"""
-        <h{level} style='
-            color: {color};
-            font-size: {size}px;
-            font-weight: 600;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
-            font-family: "Segoe UI", sans-serif;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        '>
-            {text}
-        </h{level}>
-    """
-    st.markdown(html, unsafe_allow_html=True)
-
-
-
 # ============================
 # Page Configuration
 # ============================
 st.set_page_config(
-    page_title="Global Weather Tracker",
-    page_icon="🌍",
+    page_title="Sun & Moon | Global Weather Tracker",
+    page_icon="🌞",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 🔧 Hide Streamlit top-right menu & deploy button
-hide_streamlit_style = """
-    <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
+def styled_header(text, level=2, color="rgb(255, 140, 66)", size=30):
     html = f"""
         <h{level} style='
             color: {color};
@@ -143,129 +119,12 @@ def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
             text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
             font-family: "Segoe UI", sans-serif;
             margin-top: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 0px;
         '>
             {text}
         </h{level}>
     """
     st.markdown(html, unsafe_allow_html=True)
-
-
-# -------------------------------
-# Page Config
-# -------------------------------
-st.set_page_config(page_title="Sun & Moon", layout="wide")
-# -------------------------------
-# Load Data
-# -------------------------------
-@st.cache_data(ttl=3600)
-def load_data(path="../data/processed/processed_weather_data.csv"):
-    df = pd.read_csv(path)
-    df.columns = [c.strip() for c in df.columns]
-
-    # Add continent dynamically
-    if "country" in df.columns:
-        def get_continent(country_name):
-            try:
-                alpha2 = pc.country_name_to_country_alpha2(country_name)
-                cont_code = pc.country_alpha2_to_continent_code(alpha2)
-                cont_map = {
-                    "AF": "Africa", "AS": "Asia", "EU": "Europe",
-                    "NA": "North America", "OC": "Oceania",
-                    "SA": "South America", "AN": "Antarctica"
-                }
-                return cont_map.get(cont_code, "Unknown")
-            except:
-                return "Unknown"
-        df["continent"] = df["country"].apply(get_continent)
-    else:
-        df["continent"] = "Unknown"
-
-    # Ensure datetime
-    if "last_updated" in df.columns:
-        def parse_dt(x):
-            try:
-                return datetime.strptime(str(x).strip(), "%d-%m-%Y %H:%M")
-            except:
-                try:
-                    return parser.parse(str(x))
-                except:
-                    return pd.NaT
-        df["last_updated_dt"] = df["last_updated"].apply(parse_dt)
-    return df
-
-df = load_data()
-
-# -------------------------------
-# Detect User Country & Continent
-# -------------------------------
-def get_user_country_and_continent():
-    try:
-        ip_info = requests.get('https://ipinfo.io').json()
-        country_code = ip_info.get('country')
-        if country_code:
-            country_name = pc.country_alpha2_to_country_name(country_code)
-            cont_code = pc.country_alpha2_to_continent_code(country_code)
-            cont_map = {
-                "AF": "Africa", "AS": "Asia", "EU": "Europe",
-                "NA": "North America", "OC": "Oceania",
-                "SA": "South America", "AN": "Antarctica"
-            }
-            cont_name = cont_map.get(cont_code, "Unknown")
-            return country_name, cont_name
-    except:
-        pass
-    return "India", "Asia"
-
-default_country, default_continent = get_user_country_and_continent()
-
-# -------------------------------
-# Sidebar Filters (same behavior as Air Quality)
-# -------------------------------
-st.sidebar.header("📍 Global Geographic Filters")
-
-# --- Continent Selection ---
-continents = sorted(df["continent"].unique())
-select_all_cont = st.sidebar.checkbox("Select All Continents", value=False)
-if select_all_cont:
-    selected_continents = continents
-else:
-    selected_continents = st.sidebar.multiselect(
-        "Select Continent(s)",
-        options=continents,
-        default=[default_continent] if default_continent in continents else [continents[0]]
-    )
-
-# --- Country Selection ---
-countries_in_selected = sorted(df[df["continent"].isin(selected_continents)]["country"].dropna().unique())
-select_all_countries = st.sidebar.checkbox("Select All Countries", value=False)
-if select_all_countries:
-    selected_countries = countries_in_selected
-else:
-    selected_countries = st.sidebar.multiselect(
-        "Select Country(s)",
-        options=countries_in_selected,
-        default=[default_country] if default_country in countries_in_selected else [countries_in_selected[0]]
-    )
-
-# --- Location Selection ---
-locations_in_selected = sorted(df[df["country"].isin(selected_countries)]["location_name"].dropna().unique())
-select_all_locations = st.sidebar.checkbox("Select All Locations", value=True)
-if select_all_locations:
-    selected_locations = locations_in_selected
-else:
-    selected_locations = st.sidebar.multiselect(
-        "Select Location(s)",
-        options=locations_in_selected,
-        default=locations_in_selected
-    )
-
-# Filtered Data
-df_filtered = df[
-    (df["continent"].isin(selected_continents)) &
-    (df["country"].isin(selected_countries)) &
-    (df["location_name"].isin(selected_locations))
-].copy()
 
 # -------------------------------
 # Header
@@ -292,83 +151,228 @@ if df_filtered.empty:
     st.stop()
 
 # -------------------------------
-# Styled Header and Data Overview
+# 📍 Selected Locations Overview
 # -------------------------------
 styled_header("📍 Selected Locations Overview")
-st.dataframe(df_filtered[["continent", "country", "location_name", "latitude", "longitude"]].drop_duplicates().reset_index(drop=True))
 
-# -------------------------------
-# Location Selection for Details
-# -------------------------------
-locations = df_filtered["location_name"].unique().tolist()
-selected_location = st.selectbox("Select a location for detailed Sun & Moon view", options=locations)
+# Keep only unique locations
+unique_locations = df_filtered[["iso_alpha", "continent", "country", "location_name", "latitude", "longitude"]].drop_duplicates().reset_index(drop=True)
 
-# Extracting data for the selected location
-loc_data = df_filtered[df_filtered["location_name"] == selected_location]
+# Initialize session state for selected location
+if "selected_row_idx" not in st.session_state:
+    st.session_state.selected_row_idx = None
 
-# -------------------------------
-# Latitude and Longitude Selection
-# -------------------------------
-# Get unique latitudes and longitudes for the selected location
-unique_lats = loc_data["latitude"].unique().tolist()
-unique_lons = loc_data["longitude"].unique().tolist()
+# Table styling
+st.markdown("""
+<style>
+/* Table row styling */
+.row {
+    display: flex;
+    border-bottom: 1px solid rgba(255,255,255,0.2); /* subtle line */
+    padding: 6px 0;
+    align-items: center;
+}
+.row:hover {
+    background-color: rgba(255,255,255,0.03);
+}
 
-# Let the user select a latitude and longitude from the available options
-selected_lat = st.selectbox("Select Latitude", options=unique_lats)
-selected_lon = st.selectbox("Select Longitude", options=unique_lons)
+/* Header styling */
+.header {
+    font-weight: bold;
+    color: #FFD700; /* golden header text */
+    border-bottom: 2px solid rgba(255,255,255,0.3);
+    padding: 6px 0;
+}
+.col {
+    padding: 0 8px;
+    flex: 1;
+    min-width: 50px;
+}
+.col-small { flex: 0.5; }
+.col-medium { flex: 2; }
+</style>
+""", unsafe_allow_html=True)
 
-# Fetching the timezone associated with the selected location
-tz = loc_data["timezone"].iloc[0] if "timezone" in loc_data.columns else "UTC"
+# Column headers
+st.markdown('<div class="row header">'
+            '<div class="col col-small">ISO</div>'
+            '<div class="col col-medium">Continent</div>'
+            '<div class="col col-medium">Country</div>'
+            '<div class="col col-medium">Location</div>'
+            '<div class="col col-medium">Latitude</div>'
+            '<div class="col col-medium">Longitude</div>'
+            '<div class="col col-small">Select</div>'
+            '</div>', unsafe_allow_html=True)
 
-# -------------------------------
-# Stylishly Displaying the Location Data
-# -------------------------------
+# Render rows
+for idx, row in unique_locations.iterrows():
+    cols = st.columns([1, 2, 2, 2, 2, 2, 1])
+    cols[0].markdown(f"<div class='row col-small'>{row['iso_alpha']}</div>", unsafe_allow_html=True)
+    cols[1].markdown(f"<div class='row col-medium'>{row['continent']}</div>", unsafe_allow_html=True)
+    cols[2].markdown(f"<div class='row col-medium'>{row['country']}</div>", unsafe_allow_html=True)
+    cols[3].markdown(f"<div class='row col-medium'>{row['location_name']}</div>", unsafe_allow_html=True)
+    cols[4].markdown(f"<div class='row col-medium'>{row['latitude']}</div>", unsafe_allow_html=True)
+    cols[5].markdown(f"<div class='row col-medium'>{row['longitude']}</div>", unsafe_allow_html=True)
+    if cols[6].button("Select", key=f"select_{idx}"):
+        st.session_state.selected_row_idx = idx
+
+# --------------------------------------
+# ✅ Safe row selection handling
+# --------------------------------------
+idx = st.session_state.get("selected_row_idx", None)
+
+# Validate index: must be integer within range
+if (
+    idx is None
+    or not isinstance(idx, int)
+    or idx < 0
+    or idx >= len(unique_locations)
+):
+    st.session_state.selected_row_idx = None
+    st.info("Please select a location row to see Sun & Moon details.")
+    st.stop()
+
+# ✅ Safe access now
+selected_row = unique_locations.iloc[idx]
+st.write(f"✅ Selected location: **{selected_row['location_name']}**")
+
+
+
+# Close table HTML
+st.markdown("</table>", unsafe_allow_html=True)
+
+# Handle row selection
+if st.session_state.selected_row_idx is None:
+    st.info("Select a location row to see Sun & Moon details.")
+    st.stop()
+
+selected_row = unique_locations.iloc[st.session_state.selected_row_idx]
+selected_location = selected_row["location_name"]
+selected_lat = selected_row["latitude"]
+selected_lon = selected_row["longitude"]
+tz = df_filtered[df_filtered["location_name"] == selected_location]["timezone"].iloc[0] if "timezone" in df_filtered.columns else "UTC"
+
+# Display selected location info
 st.markdown(f"""
-    <div style="
-        background-color: #333;
-        color: #F2F2F2;
-        padding: 15px;
-        border-radius: 8px;
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 16px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    ">
-        <span style="font-weight: bold;">Location:</span> {selected_location} 
-        <span style="font-weight: bold;">Lat:</span> {selected_lat} 
-        <span style="font-weight: bold;">Lon:</span> {selected_lon} 
-        <span style="font-weight: bold;">Timezone:</span> {tz}
-    </div>
+<div style="
+    background-color: #333;
+    color: #F2F2F2;
+    padding: 15px;
+    border-radius: 8px;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+">
+    <span><b>Location:</b> {selected_location}</span>
+    <span><b>Lat:</b> {selected_lat}</span>
+    <span><b>Lon:</b> {selected_lon}</span>
+    <span><b>Timezone:</b> {tz}</span>
+</div>
 """, unsafe_allow_html=True)
 
 
 # -------------------------------
-# Available Dates
+# 🗓️ Available Dates Fix
 # -------------------------------
-available_dates = pd.to_datetime(loc_data["last_updated_dt"]).dt.date.dropna().unique()
-selected_date = st.date_input("Select a date", value=available_dates[0], min_value=min(available_dates), max_value=max(available_dates))
+# Filter df_filtered for the selected location
+loc_data = df_filtered[df_filtered["location_name"] == selected_location].copy()
 
-loc_day_data = loc_data[pd.to_datetime(loc_data["last_updated_dt"]).dt.date == selected_date]
-times = sorted(pd.to_datetime(loc_day_data["last_updated_dt"]).dt.time.unique())
+if loc_data.empty:
+    st.warning("No data found for the selected location.")
+    st.stop()
 
-styled_header("Select a Time")
+# Convert datetime column
+if "last_updated_dt" in loc_data.columns:
+    loc_data["datetime"] = pd.to_datetime(loc_data["last_updated_dt"], errors="coerce")
+elif "last_updated" in loc_data.columns:
+    loc_data["datetime"] = pd.to_datetime(loc_data["last_updated"], errors="coerce")
+else:
+    st.error("❌ No datetime column found in the dataset.")
+    st.stop()
+
+loc_data = loc_data.dropna(subset=["datetime"])
+available_dates = loc_data["datetime"].dt.date.dropna().unique()
+
+if len(available_dates) == 0:
+    st.warning("No valid date entries found for this location.")
+    st.stop()
+
+
+# -------------------------------
+# 🗓️ Available Dates & Times
+# -------------------------------
+
+# Detect proper datetime column
+if "last_updated_dt" in loc_data.columns:
+    datetime_col = "last_updated_dt"
+elif "last_updated" in loc_data.columns:
+    datetime_col = "last_updated"
+else:
+    st.error("❌ No valid datetime column found in dataset.")
+    st.stop()
+
+# Convert safely
+loc_data["datetime"] = pd.to_datetime(loc_data[datetime_col], errors="coerce")
+loc_data = loc_data.dropna(subset=["datetime"])
+
+# Available Dates
+available_dates = sorted(loc_data["datetime"].dt.date.dropna().unique().tolist())
+
+if not available_dates:
+    st.warning("⚠️ No available dates for this location.")
+    st.stop()
+
+selected_date = st.date_input(
+    "📅 Select a Date",
+    value=available_dates[0],
+    min_value=min(available_dates),
+    max_value=max(available_dates),
+)
+
+# Filter day data
+loc_day_data = loc_data[loc_data["datetime"].dt.date == selected_date]
+if loc_day_data.empty:
+    st.warning("⚠️ No data available for the selected date.")
+    st.stop()
+
+# Extract times
+times = sorted(loc_day_data["datetime"].dt.time.dropna().unique().tolist())
+
+# Time selection
+st.subheader("🕓 Select a Time")
 cols = st.columns(6)
 selected_time = None
 for i, t in enumerate(times):
     if cols[i % 6].button(str(t)):
         selected_time = t
+        st.session_state["selected_time"] = t  # persist selection
+
+# Restore previously selected time
+if not selected_time and "selected_time" in st.session_state:
+    selected_time = st.session_state["selected_time"]
 
 if not selected_time:
     st.info("Please select a time slot to visualize Sun & Moon details.")
     st.stop()
 
+# Combine selection
 selected_dt = datetime.combine(selected_date, selected_time)
-row = loc_day_data[pd.to_datetime(loc_day_data["last_updated_dt"]) == pd.to_datetime(selected_dt)].iloc[0]
+
+# Get row for selected datetime
+row = loc_day_data[
+    pd.to_datetime(loc_day_data["datetime"]) == pd.to_datetime(selected_dt)
+]
+
+if row.empty:
+    st.warning("Please select a time slot to visualize Sun & Moon details.")
+    st.stop()
+
+row = row.iloc[0]
 
 # -------------------------------
-# Sun & Moon Visuals
+# 🌤️ Weather Snapshot + Sun/Moon
 # -------------------------------
 st.markdown("---")
 col1, col2 = st.columns([1, 2])
@@ -384,7 +388,7 @@ with col1:
     st.write(f"**Last Updated:** {row.get('last_updated','—')}")
 
 with col2:
-    st.header("☀️🌙 Sun & Moon Visual")
+    st.header("🌙 Moon Illumination ")
     sunrise = row.get("sunrise", "—")
     sunset = row.get("sunset", "—")
     moonrise = row.get("moonrise", "—")
@@ -395,84 +399,57 @@ with col2:
     fig = go.Figure()
     fig.add_trace(go.Indicator(
         mode="number",
-        value=float(moon_illum) if str(moon_illum).replace('.','',1).isdigit() else 0,
+        value=float(moon_illum) if str(moon_illum).replace('.', '', 1).isdigit() else 0,
         number={'suffix': "%"},
         title={"text": f"Moon Illumination<br>{moon_phase}"}
     ))
     fig.update_layout(height=300, margin={"t": 20, "b": 20})
     st.plotly_chart(fig, use_container_width=True)
 
-
-# ============================
-# 🌅 Sun & 🌙 Moon Visuals (Selected Slot)
-# ============================
-
+# -------------------------------
+# 🌅 Sun & 🌙 Moon Details
+# -------------------------------
 st.markdown("---")
 st.markdown("### 🌅 Sun & 🌙 Moon Details for Selected Location & Time")
 
 col_sun, col_moon = st.columns(2)
 
-# -------------------------------
-# 🌞 SUN VISUAL
-# -------------------------------
 # 🌞 SUN VISUAL
 with col_sun:
     st.subheader("Sun Status ☀️")
-
     try:
-        # Extract last updated date
         selected_dt = pd.to_datetime(row.get('last_updated'), errors='coerce')
+        sunrise_dt = pd.to_datetime(f"{selected_dt.date()} {sunrise}", errors='coerce')
+        sunset_dt = pd.to_datetime(f"{selected_dt.date()} {sunset}", errors='coerce')
 
-        if selected_dt is not pd.NaT:
-            # If sunrise/sunset are just times, combine them with the date
-            sunrise_dt = pd.to_datetime(f"{selected_dt.date()} {sunrise}", errors='coerce')
-            sunset_dt = pd.to_datetime(f"{selected_dt.date()} {sunset}", errors='coerce')
+        total = (sunset_dt - sunrise_dt).total_seconds()
+        elapsed = (selected_dt - sunrise_dt).total_seconds()
+        progress = max(0, min(1, elapsed / total)) if total > 0 else 0
 
-            if sunrise_dt and sunset_dt:
-                total = (sunset_dt - sunrise_dt).total_seconds()
-                elapsed = (selected_dt - sunrise_dt).total_seconds()
-                progress = max(0, min(1, elapsed / total)) if total > 0 else 0
-
-                # Plot sun progress
-                fig_sun = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=progress * 100,
-                    title={
-                        'text': f"Day Progress: {int(progress * 100)}%<br>🌅 {sunrise_dt.strftime('%H:%M')} | 🌇 {sunset_dt.strftime('%H:%M')}",
-                        'font': {'size': 14}
-                    },
-                    gauge={
-                        'axis': {'range': [0, 100]},
-                        'bar': {'thickness': 0.3, 'color': '#FFD54F'},
-                        'steps': [
-                            {'range': [0, 50], 'color': 'rgba(255,223,99,0.3)'},
-                            {'range': [50, 100], 'color': 'rgba(255,180,0,0.3)'}
-                        ]
-                    }
-                ))
-                fig_sun.update_layout(
-                    height=300,
-                    margin={'t': 20, 'b': 20, 'l': 20, 'r': 20},
-                    template="plotly_dark"
-                )
-                st.plotly_chart(fig_sun, use_container_width=True)
-            else:
-                st.info("☀️ Sun data unavailable for this slot.")
-        else:
-            st.info("☀️ Sun data unavailable for this slot.")
-
+        fig_sun = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=progress * 100,
+            title={
+                'text': f"Day Progress: {int(progress * 100)}%<br>🌅 {sunrise_dt.strftime('%H:%M')} | 🌇 {sunset_dt.strftime('%H:%M')}",
+                'font': {'size': 14}
+            },
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'thickness': 0.3, 'color': '#FFD54F'},
+                'steps': [
+                    {'range': [0, 50], 'color': 'rgba(255,223,99,0.3)'},
+                    {'range': [50, 100], 'color': 'rgba(255,180,0,0.3)'}
+                ]
+            }
+        ))
+        fig_sun.update_layout(height=300, margin={'t': 20, 'b': 20, 'l': 20, 'r': 20}, template="plotly_dark")
+        st.plotly_chart(fig_sun, use_container_width=True)
     except Exception as e:
-        st.error(f"Error calculating Sun progress: {e}")
+        st.info("☀️ Sun data unavailable for this slot.")
 
-
-
-# -------------------------------
 # 🌙 MOON VISUAL
-# -------------------------------
 with col_moon:
     st.subheader("Moon Phase 🌔")
-
-    illum = 0
     try:
         illum = float(moon_illum) if str(moon_illum).replace('.', '', 1).isdigit() else 0
     except:
@@ -486,7 +463,6 @@ with col_moon:
         sort=False,
         textinfo='none'
     ))
-
     fig_moon.update_layout(
         title=f"{moon_phase} · Illumination {illum:.1f}%",
         height=300,
@@ -494,18 +470,8 @@ with col_moon:
         margin={'t': 30, 'b': 10, 'l': 10, 'r': 10},
         template="plotly_dark"
     )
-
-    fig_moon.add_annotation(
-        text=f"{int(illum)}%",
-        x=0.5,
-        y=0.5,
-        font_size=20,
-        showarrow=False
-    )
-
+    fig_moon.add_annotation(text=f"{int(illum)}%", x=0.5, y=0.5, font_size=20, showarrow=False)
     st.plotly_chart(fig_moon, use_container_width=True)
-
-
 
 # -------------------------------
 # Summary Table

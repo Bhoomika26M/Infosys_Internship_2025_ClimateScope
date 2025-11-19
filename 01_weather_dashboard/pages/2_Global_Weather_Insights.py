@@ -5,7 +5,19 @@ import plotly.express as px
 import requests
 import pycountry_convert as pc
 
+# ✅ Access the globally loaded data
+from components.data_loader import get_global_data
+df = get_global_data()
 
+from components.sidebar_filters import sidebar_location_filters, get_user_country_and_continent
+default_country, default_continent = get_user_country_and_continent()
+
+# ✅ Use shared sidebar filter
+df_filtered = sidebar_location_filters(df)
+
+selected_continents = st.session_state.get("continent", [])
+selected_countries = st.session_state.get("country", [])
+selected_locations = st.session_state.get("location", [])
 
 # ===============================
 # 🎨 Styled Sidebar Navigation
@@ -94,14 +106,14 @@ st.set_page_config(
 # 🔧 Hide Streamlit top-right menu & deploy button
 hide_streamlit_style = """
     <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;} 
+        footer {visibility: hidden;} 
+        header [data-testid="stHeader"] div:nth-child(2) {display: none;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
+def styled_header(text, level=2, color="rgb(255, 140, 66)", size=32):
     html = f"""
         <h{level} style='
             color: {color};
@@ -117,71 +129,6 @@ def styled_header(text, level=2, color="rgb(255, 75, 75)", size=32):
     """
     st.markdown(html, unsafe_allow_html=True)
 
-
-
-# =========================
-# Load Data
-# =========================
-@st.cache_data
-def load_data():
-    #df = pd.read_csv("../data/processed/normalized_weather_data.csv", parse_dates=["last_updated"])
-    df = pd.read_csv("../data/processed/processed_weather_data.csv", parse_dates=["last_updated"])
-
-    df.columns = [col.strip() for col in df.columns]
-    return df
-
-df = load_data()
-
-# =========================
-# Map Country → Continent
-# =========================
-def country_to_continent(country_name):
-    try:
-        country_alpha2 = pc.country_name_to_country_alpha2(country_name)
-        continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
-        return {
-            'AF': 'Africa', 'AS': 'Asia', 'EU': 'Europe', 'NA': 'North America',
-            'OC': 'Oceania', 'SA': 'South America', 'AN': 'Antarctica'
-        }[continent_code]
-    except:
-        return "Unknown"
-
-if 'continent' not in df.columns:
-    df['continent'] = df['country'].apply(country_to_continent)
-
-# =========================
-# Detect User Country
-# =========================
-def get_user_country():
-    try:
-        ip_info = requests.get('https://ipinfo.io').json()
-        return ip_info.get('country', None)
-    except:
-        return None
-
-user_country = get_user_country()
-unique_countries = sorted(df['country'].unique())
-
-# Default country and continent
-default_country = user_country if user_country in unique_countries else "India"
-default_continent = df[df['country']==default_country]['continent'].values[0]
-
-# =========================
-# Sidebar Filters
-# =========================
-st.sidebar.header("📍 Global Geographic Filters")
-
-# Continent filter
-continents = sorted(df['continent'].unique())
-select_all_continents = st.sidebar.checkbox("Select All Continents", value=False)
-if select_all_continents:
-    selected_continents = continents
-else:
-    selected_continents = st.sidebar.multiselect(
-        "Select Continents",
-        options=continents,
-        default=[default_continent]
-    )
 
 # AQI filter
 aqi_options = {
@@ -202,39 +149,6 @@ precip_range = st.sidebar.slider("Precipitation (mm)", float(df['precip_mm'].min
 wind_range = st.sidebar.slider("Wind Speed (mph)", float(df['wind_mph'].min()), float(df['wind_mph'].max()), (float(df['wind_mph'].min()), float(df['wind_mph'].max())), 0.01)
 uv_range = st.sidebar.slider("UV Index", float(df['uv_index'].min()), float(df['uv_index'].max()), (float(df['uv_index'].min()), float(df['uv_index'].max())), 0.01)
 humidity_range = st.sidebar.slider("Humidity (%)", float(df['humidity'].min()), float(df['humidity'].max()), (float(df['humidity'].min()), float(df['humidity'].max())), 0.01)
-
-# =========================
-# Country Selection on Main Page
-# =========================
-st.markdown("### 🌏 Select Countries by Continent")
-
-selected_countries = []
-
-for cont in selected_continents:
-    countries_in_cont = sorted(df[df['continent'] == cont]['country'].unique())
-    default_countries = [default_country] if default_country in countries_in_cont else []
-
-    with st.expander(f"{cont} ({len(countries_in_cont)} countries)", expanded=True):
-
-        # ✅ Add "Select all countries in {continent}" button
-        select_all_clicked = st.button(f"Select all countries in {cont}", key=f"select_all_{cont}")
-
-        # If the button is clicked → select all countries in that continent
-        if select_all_clicked:
-            st.session_state[f"countries_{cont}"] = countries_in_cont
-
-        chosen = st.multiselect(
-            f"Select countries in {cont}",
-            options=countries_in_cont,
-            default=st.session_state.get(f"countries_{cont}", default_countries),
-            key=f"countries_{cont}"
-        )
-
-        selected_countries.extend(chosen)
-
-if not selected_countries:
-    st.warning("Please select at least one country to view data.")
-    st.stop()
 
 
 # =========================
@@ -258,37 +172,6 @@ if df_filtered.empty:
     st.warning("No data found for selected filters.")
     st.stop()
 
-# =========================
-# Global Map
-# =========================
-st.title("🌍 Global Weather Map")
-df_filtered['humidity_size'] = df_filtered['humidity'] - df_filtered['humidity'].min() + 1e-3
-
-map_fig = px.scatter_geo(
-    df_filtered,
-    lat='latitude',
-    lon='longitude',
-    color='temperature_celsius',
-    hover_name='location_name',
-    size='humidity_size',
-    hover_data={
-        'humidity': ':.2f',
-        'wind_mph': ':.2f',
-        'uv_index': ':.2f',
-        'air_quality_us-epa-index': ':.2f'
-    },
-    color_continuous_scale=px.colors.sequential.Plasma,
-    title=f"Weather Overview ({len(selected_continents)} continents, {len(selected_countries)} countries)",
-    template="plotly_dark",
-    height=600
-)
-
-if default_country in df_filtered['country'].values:
-    user_data = df_filtered[df_filtered['country']==default_country].iloc[0]
-    map_fig.update_geos(center={"lat": user_data['latitude'], "lon": user_data['longitude']}, projection_scale=2)
-
-map_fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
-st.plotly_chart(map_fig, use_container_width=True)
 
 # =========================
 # Weather Overview Tabs with Sub-filter and Graph Selection
@@ -299,9 +182,15 @@ st.plotly_chart(map_fig, use_container_width=True)
 #Scatter	Reveals relationships between metrics
 #Line	Tracks changes over time
 
-st.markdown("## 📊 Weather Overview by Selected Locations")
+# ===============================
+# 📊 Weather Overview by Selected Locations
+# ===============================
+st.markdown("""
+    <h1 style='text-align: center; color: #FF4B4B; width:100%; font-size: 48px; font-family: "Segoe UI", sans-serif;margin-top: -50px;'>
+        📊 Weather Overview
+    </h1>
+""", unsafe_allow_html=True)
 
-# --- Brief Explanation of Graph Types ---
 with st.expander("📘 What Each Graph Type Shows", expanded=False):
     st.markdown("""
     <div style="
@@ -313,20 +202,11 @@ with st.expander("📘 What Each Graph Type Shows", expanded=False):
         line-height: 1.6;
     ">
     • <b>Bar Chart</b> — Compares <i>average values</i> (like temperature or humidity) across locations.<br>
-    Ideal for spotting which areas are hotter, more humid, or windier overall.<br><br>
-
     • <b>Line Chart</b> — Tracks how a metric <i>changes over time</i> for each location.<br>
-    Useful for observing temperature fluctuations or UV trends.<br>
-
     • <b>Box Plot</b> — Reveals <i>data spread, variability</i>, and <i>outliers</i>.<br>
-    Helpful for identifying extreme or unstable weather conditions.<br>
-
     • <b>Scatter Plot</b> — Displays <i>relationships between two metrics</i> (e.g., temperature vs humidity).<br>
-    Great for exploring correlations such as “higher temperature → lower humidity”.
     </div>
     """, unsafe_allow_html=True)
-
-
 
 metric_map = {
     "Temperature": "temperature_celsius",
@@ -350,12 +230,28 @@ for tab_name, tab in zip(metric_map.keys(), tabs):
         df_tab = df_filtered[df_filtered['location_name'].isin(sub_locations)]
 
         # --- Select Graph Type ---
-        graph_selected = st.selectbox(f"Select Graph Type for {tab_name}", graph_options, key=f"{tab_name}_graph")
+        graph_selected = st.selectbox(
+            f"Select Graph Type for {tab_name}",
+            graph_options,
+            key=f"{tab_name}_graph"
+        )
 
         col = metric_map[tab_name]
 
+        # --- Scatter-specific filter (appears only when Scatter is chosen) ---
+        if graph_selected == "Scatter":
+            other_choices = [m for m in metric_map.keys() if m != tab_name]
+            selected_other = st.selectbox(
+                f"Select comparison metric for {tab_name} (Y-axis):",
+                options=other_choices,
+                key=f"{tab_name}_other_metric"
+            )
+            other_col = metric_map[selected_other]
+        else:
+            other_col = None
+
         # --- Plot Function ---
-        def plot_metric(df_plot, col, graph_type):
+        def plot_metric(df_plot, col, graph_type, other_col=None):
             if df_plot.empty:
                 st.warning("No data for selected locations")
                 return None
@@ -395,24 +291,14 @@ for tab_name, tab in zip(metric_map.keys(), tabs):
                     hover_data=['country'],
                     title=f"{display_name} Trend Over Time by Location"
                 )
-                fig.update_traces(
-                    hovertemplate="Location: %{customdata[0]}<br>" +
-                                  "Date: %{x}<br>" +
-                                  f"{display_name}: "+"%{y:.2f} "+unit
-                )
+
             elif graph_type == "Bar":
-                # Prepare the data
                 df_avg = (
                     df_plot.groupby(['country', 'location_name'])[col]
                     .mean()
                     .reset_index()
                 )
-
-                # Format temperature to two decimal places
                 df_avg[col] = df_avg[col].round(2)
-
-                
-                # Create the bar chart
                 fig = px.bar(
                     df_avg,
                     x='location_name',
@@ -420,38 +306,239 @@ for tab_name, tab in zip(metric_map.keys(), tabs):
                     color=col,
                     color_continuous_scale=scale,
                     title=f"Average {display_name} by Location",
-                    hover_data={
-                        'country': True,
-                        'location_name': True,
-                        col: ':.2f'
-                    }
+                    hover_data={'country': True, 'location_name': True, col: ':.2f'}
                 )
 
             elif graph_type == "Box":
-                fig = px.box(df_plot, x='location_name', y=col, color='location_name',
-                             title=f"{display_name} Distribution by Location")
-            elif graph_type == "Scatter":
-                other_metric = np.random.choice([c for c in metric_map.values() if c != col])
-                fig = px.scatter(df_plot, x=col, y=other_metric, color='location_name',
-                                 hover_data=['country'],
-                                 title=f"{display_name} vs {other_metric} by Location")
+                fig = px.box(
+                    df_plot,
+                    x='location_name',
+                    y=col,
+                    color='location_name',
+                    title=f"{display_name} Distribution by Location"
+                )
 
-            fig.update_layout(height=450, xaxis_title="Location")
+            elif graph_type == "Scatter" and other_col:
+                other_display = display_names.get(other_col, other_col)
+                fig = px.scatter(
+                    df_plot,
+                    x=col,
+                    y=other_col,
+                    color='location_name',
+                    hover_data=['country'],
+                    title=f"{display_name} vs {other_display} by Location"
+                )
+                fig.update_layout(
+                    xaxis_title=f"{display_name} ({units[col]})",
+                    yaxis_title=f"{other_display} ({units[other_col]})"
+                )
+            else:
+                st.warning("Please select a metric to compare.")
+                return None
+
+            fig.update_layout(height=450)
             return fig
 
-        fig = plot_metric(df_tab, col, graph_selected)
+        fig = plot_metric(df_tab, col, graph_selected, other_col)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
+        
+
+       # --- Dynamic Summary Section (Smart Version) ---
+        if not df_tab.empty and fig is not None:
+            metric_display = tab_name
+            num_locations = len(sub_locations)
+            num_points = len(df_tab)
+            avg_value = df_tab[col].mean().round(2)
+            min_value = df_tab[col].min().round(2)
+            max_value = df_tab[col].max().round(2)
+            graph_type = graph_selected
+
+            # Default base description
+            summary_text = ""
+            quick_insight = ""
+
+            # ---- Graph-Type Specific Explanations ----
+            if graph_type == "Bar":
+                df_avg = df_tab.groupby('location_name')[col].mean().round(2)
+                top_location = df_avg.idxmax()
+                top_value = df_avg.max()
+                bottom_location = df_avg.idxmin()
+                bottom_value = df_avg.min()
+                summary_text = (
+                    f"This bar chart compares <b>{metric_display}</b> averages across "
+                    f"<b>{num_locations}</b> selected location(s). It helps identify which region "
+                    f"has the highest and lowest average {metric_display.lower()}."
+                )
+                quick_insight = (
+                    f"🔹 The highest average {metric_display.lower()} is <b>{top_value}</b> "
+                    f"at <b>{top_location}</b>, while the lowest is <b>{bottom_value}</b> "
+                    f"at <b>{bottom_location}</b>.<br>"
+                    f"🔹 Overall mean: <span style='color:#FFD700;'>{avg_value}</span> units."
+                )
+
+            elif graph_type == "Line":
+                df_tab['last_updated'] = pd.to_datetime(df_tab['last_updated'], errors='coerce')
+                trend_text = "temporal patterns, seasonal changes, or sudden fluctuations"
+                summary_text = (
+                    f"This line chart tracks how <b>{metric_display}</b> values change over time "
+                    f"across <b>{num_locations}</b> location(s). It highlights {trend_text} "
+                    f"in your selected dataset."
+                )
+                latest_values = (
+                    df_tab.sort_values('last_updated')
+                    .groupby('location_name')[col]
+                    .last()
+                    .round(2)
+                )
+                latest_display = "<br>".join([f"🔹 <b>{loc}:</b> {val}" for loc, val in latest_values.items()])
+                quick_insight = (
+                    f"The average <b>{metric_display}</b> across all data is "
+                    f"<span style='color:#FFD700;'>{avg_value}</span> units.<br>"
+                    f"Here are the latest readings:<br>{latest_display}"
+                )
+
+            elif graph_type == "Box":
+                summary_text = (
+                    f"This box plot reveals the <b>data spread</b>, <b>variability</b>, and "
+                    f"<b>outliers</b> of <b>{metric_display}</b> across the selected "
+                    f"{num_locations} location(s). It’s ideal for detecting uneven distributions."
+                )
+                spread = (max_value - min_value).round(2)
+                quick_insight = (
+                    f"🔹 Overall range: <b>{min_value}</b> – <b>{max_value}</b> units "
+                    f"(<b>spread:</b> {spread}).<br>"
+                    f"🔹 Mean value: <span style='color:#FFD700;'>{avg_value}</span> units."
+                )
+
+            elif graph_type == "Scatter" and other_col:
+                other_display = [k for k, v in metric_map.items() if v == other_col][0]
+                corr = df_tab[[col, other_col]].corr().iloc[0, 1].round(2)
+                trend_type = (
+                    "positive" if corr > 0.3 else "negative" if corr < -0.3 else "weak or no"
+                )
+                summary_text = (
+                    f"This scatter plot visualizes the <b>relationship</b> between "
+                    f"<b>{metric_display}</b> and <b>{other_display}</b> across selected locations."
+                )
+                quick_insight = (
+                    f"🔹 The correlation between <b>{metric_display}</b> and <b>{other_display}</b> "
+                    f"is <b>{corr}</b> ({trend_type} correlation).<br>"
+                    f"🔹 Average {metric_display.lower()}: <span style='color:#FFD700;'>{avg_value}</span> units."
+                )
+
+            else:
+                summary_text = (
+                    f"This visualization shows <b>{metric_display}</b> patterns "
+                    f"across selected locations."
+                )
+                quick_insight = (
+                    f"Average value: <span style='color:#FFD700;'>{avg_value}</span> units."
+                )
+
+            # ---- Render Styled Summary ----
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #1a1a1a;
+                    border-left: 4px solid #4caf50;
+                    padding: 18px 20px;
+                    border-radius: 10px;
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    margin-top: 15px;
+                    line-height: 1.7;
+                ">
+                <h4 style="color:#76ff03;">📊 Analysis Summary</h4>
+                <b>🗂 Selected Metric:</b> {metric_display}<br>
+                <b>📈 Graph Type:</b> {graph_type}<br>
+                <b>📍 Locations Displayed:</b> {num_locations}<br>
+                <b>📊 Total Data Points:</b> {num_points}<br><br>
+
+                <b>🔍 Analysis Summary:</b><br>{summary_text}<br><br>
+                <b>📌 Quick Insight:</b><br>{quick_insight}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
 
 
 
 
 # =========================
-# KPI Cards
+# 🎯 Styled KPI Cards (Dark Theme)
 # =========================
+
 st.markdown("## 🔹 Key Metrics")
+
+# --- Styles ---
+box_style = """
+    background-color: #1e1e1e;
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 2px solid #333333;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+    color: #e0e0e0;
+    text-align: left;
+    font-size: 14px;
+    margin: auto;
+"""
+
+label_style = "font-weight: bold; color: #FFD700; font-size: 16px;"
+value_style = "font-size: 30px; font-weight: light; color: #ffffff;"
+
+# --- KPI Calculations ---
+avg_temp = df_filtered['temperature_celsius'].mean()
+avg_humidity = df_filtered['humidity'].mean()
+avg_wind = df_filtered['wind_mph'].mean()
+avg_uv = df_filtered['uv_index'].mean()
+
+# --- Layout ---
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Avg Temperature", f"{df_filtered['temperature_celsius'].mean():.2f} °C")
-col2.metric("Avg Humidity", f"{df_filtered['humidity'].mean():.2f} %")
-col3.metric("Avg Wind Speed", f"{df_filtered['wind_mph'].mean():.2f} mph")
-col4.metric("Avg UV Index", f"{df_filtered['uv_index'].mean():.2f}")
+
+with col1:
+    st.markdown(
+        f"""
+        <div style="{box_style}">
+            <div style="{label_style}">Avg. Temperature</div>
+            <div style="{value_style}">{avg_temp:.2f} °C</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col2:
+    st.markdown(
+        f"""
+        <div style="{box_style}">
+            <div style="{label_style}">Avg. Humidity</div>
+            <div style="{value_style}">{avg_humidity:.2f} %</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col3:
+    st.markdown(
+        f"""
+        <div style="{box_style}">
+            <div style="{label_style}">Avg. Wind Speed</div>
+            <div style="{value_style}">{avg_wind:.2f} mph</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col4:
+    st.markdown(
+        f"""
+        <div style="{box_style}">
+            <div style="{label_style}">Avg. UV Index</div>
+            <div style="{value_style}">{avg_uv:.2f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
