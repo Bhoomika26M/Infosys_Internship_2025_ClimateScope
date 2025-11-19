@@ -1,0 +1,55 @@
+🐞 Overall Bug Report — ClimateScope Dashboard Project 2025
+📘 Project Information
+
+Project Title: ClimateScope Dashboard Analysis
+Developer: POLU HARSHITHA 
+Frameworks Used: Streamlit, Plotly, Pandas, NumPy.
+Language: Python 3.10+
+Final Report Date: November 2025
+
+🧭 Overview
+The ClimateScope Dashboard is a climate analytics application that visualizes global weather trends, correlations, and extreme climate patterns. 
+ During development, several significant issues were encountered and resolved, ranging from critical data handling errors to visualization deprecations and complex UI/UX challenges. This report consolidates all major bugs identified and fixed.
+
+🐞 Summary of Reported Bugs (Resolved)
+
+The following issues were successfully identified and resolved:
+
+B-001 (Data Loading): A NameError crash occurred due to a typo in the file path variable.
+
+B-002 (Plotly Deprecation): The dashboard displayed a persistent, distracting yellow warning box regarding deprecated keyword arguments in Plotly functions.
+
+B-003 (Plotly Deprecation): The World Map feature threw a deprecation warning because it used outdated locationmode="country names".
+
+B-004 (UI/UX): The visual transition from the Welcome Modal to the dark main dashboard was jarring due to a color mismatch.
+
+B-005 (UI/UX): The Scatter Plot in the Climate Trends tab was redundant, requiring unnecessary re-selection of the primary metric.
+
+B-006 (UI/Aesthetics): The Chart Interactivity note cluttered the filter area of the sidebar.
+
+B-007 (Streamlit Deprecation): Warnings appeared regarding the deprecated use_container_width chart sizing parameter.
+
+🧩 Detailed Bug Analysis and Fixes
+
+ B-001 — Dataset Loading Failure (NameError)
+Symptom: The application failed to launch, halting immediately with a NameError traceback during the data loading stage. Cause: A simple typo (CLEED_DATA_PATH) in the Python code prevented the script from correctly referencing the CLEANED_DATA_PATH variable. Fix: The typo was corrected, ensuring the load_data() function successfully accessed the cleaned_weather.csv file path.
+
+ B-002 — Persistent Plotly Keyword Deprecation Warning
+Symptom: A yellow warning banner remained visible across many chart tabs, advising developers to use config instead of direct keyword arguments (title, labels). Cause: Streamlit flags standard Plotly Express keywords when they are used internally. Fix: The plotting code was refactored across all tabs. Keywords were removed from the initial px.Function call and applied robustly using the future-proof fig.update_layout() method. Custom CSS was injected to hide the specific warning element ([data-testid="stDecoration"]) as a final measure to ensure a clean visual environment for the user.
+
+ B-003 — World Map Deprecation & Inconsistency
+Symptom: The geographical map displayed a DeprecationWarning related to locationmode="country names". Cause: Plotly is moving away from translating plain country names, requiring the use of standard three-letter ISO-3 codes. Fix: The plotting logic was updated to use the ISO-3 standard (locations="iso_alpha", locationmode='ISO-3'), future-proofing the map and resolving the warning.
+
+ B-004 — UI/UX: Modal Visual Mismatch
+Symptom: The transition from the Welcome Screen to the main dark dashboard was visually jarring due to the modal box being bright white. Cause: The modal overlay color did not visually match the primary dark background of the main application. Fix: The CSS was adjusted: the modal box was kept White for high contrast, but the overlay (.modal-overlay) was explicitly set to match the main application's secondary dark gray (#262730), resulting in a smooth, blended transition.
+
+ B-005 — Climate Trends Scatter Plot Redundancy
+Symptom: The Scatter Plot in the Climate Trends tab had two selectors, one of which duplicated the "Primary Metric" chosen above the tabs. Cause: The X and Y axis selectors for the scatter plot were configured as fully independent. Fix: The Y-Axis selector was removed, and the plot logic was updated to automatically use the Primary Metric for the Y-Axis, leaving only the Secondary Metric (X-Axis) selector for the user to define the comparison variable.
+
+ B-006 — Layout/UI: Sidebar Clutter
+Symptom:
+ The "Chart Interactivity" note appeared clumsily within the primary data filter settings. Cause: The st.sidebar.markdown element was placed incorrectly. Fix: The note was repositioned using st.sidebar.markdown to appear cleanly at the bottom of the Main Navigation section, separate from the date and country filters.
+
+ B-007 — Streamlit Chart Resizing Deprecation
+Symptom:
+ Console warnings appeared about the future removal of the use_container_width argument. Cause: Streamlit's API shifting to new explicit sizing parameters. Fix: All instances of use_container_width=True were replaced with the future-proof syntax, width='stretch', eliminating the deprecation warning.
