@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -47,7 +46,7 @@ metrics = [
     'wind_kph'
 ]
 
-# --- Helper Functions (Keep unchanged) ---
+# --- Helper Functions ---
 
 def get_metric_unit(metric):
     if 'temp' in metric:
@@ -78,12 +77,12 @@ st.set_page_config(
 )
 
 
-# --- WELCOME MODAL LOGIC ---
+# --- WELCOME MODAL LOGIC (LIGHT BOX) ---
 if 'show_welcome_modal' not in st.session_state:
     st.session_state.show_welcome_modal = True
 
 if st.session_state.show_welcome_modal:
-    # Inject aggressive CSS for full screen coverage and modal positioning
+    # Inject CSS for LIGHT BOX modal
     st.markdown(
         """
         <style>
@@ -101,28 +100,29 @@ if st.session_state.show_welcome_modal:
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: #2e3440; 
+            /* FINAL FIX: Set background explicitly to match Streamlit's secondary/sidebar background */
+            background-color: #262730; 
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
         .modal-content {
-            background-color: #37475f; 
+            background-color: #FFFFFF; /* White Box Background */
             padding: 40px;
-            padding-bottom: 120px; /* Increased bottom padding to make space for the button */
+            padding-bottom: 120px; 
             border-radius: 15px;
             text-align: center;
             max-width: 650px;
-            color: white; 
-            box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.4);
+            color: #0E1117; /* Dark Text */
+            box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.6);
             animation: fadeIn 0.5s ease-out;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
         .modal-content h2 {
-            color: #4CAF50; 
+            color: #1E88E5; /* Blue contrast for heading */
             font-size: 2.2em;
             margin-bottom: 20px;
         }
@@ -130,11 +130,12 @@ if st.session_state.show_welcome_modal:
             font-size: 1.1em;
             line-height: 1.6;
             margin-bottom: 20px;
+            color: #0E1117; /* Ensure text is dark */
         }
         .modal-content-instruction {
             font-size: 1.0em;
             margin-bottom: 30px; 
-            color: #ccc;
+            color: #4B4B4B; /* Muted dark text */
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-30px); }
@@ -142,17 +143,16 @@ if st.session_state.show_welcome_modal:
         }
 
         /* FIX: POSITION THE STREAMLIT BUTTON OVER THE MODAL */
-        /* Target the button's vertical block container (using nth-child for reliability) */
         [data-testid="stVerticalBlock"] > div:nth-child(2) {
             position: fixed;
-            top: 68%; /* Final adjusted position */
+            top: 68%; 
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 1001; 
         }
-        /* Style the button visually */
+        /* Style the button visually (Keeping primary color blue) */
         [data-testid="stButton"] button {
-            background-color: #4CAF50 !important;
+            background-color: #1E88E5 !important; /* BLUE BUTTON */
             color: white !important;
             padding: 15px 40px !important;
             border-radius: 8px !important;
@@ -161,7 +161,7 @@ if st.session_state.show_welcome_modal:
             transition: background-color 0.2s ease;
         }
         [data-testid="stButton"] button:hover {
-            background-color: #45a049 !important;
+            background-color: #1565C0 !important; /* Darker blue on hover */
         }
         </style>
         """,
@@ -178,7 +178,6 @@ if st.session_state.show_welcome_modal:
                     <p>
                         Dive into global climate data. This dashboard offers powerful tools to explore **temperature**, **humidity**,
                         **wind patterns**, and **precipitation** across various countries and timeframes.
-                        Understand trends, compare regions, and analyze **extreme events** with ease.
                     </p>
                     <p class="modal-content-instruction">
                         Click "Explore Dashboard" to access the full-featured platform.
@@ -200,6 +199,20 @@ if st.session_state.show_welcome_modal:
 
 
 # --- Main Dashboard Content (Only runs if show_welcome_modal is False) ---
+
+# --- START OF MAIN APP CSS INJECTION ---
+# This CSS will run *after* the modal is dismissed.
+st.markdown(
+    """
+    <style>
+    /* FINAL FIX: Hide the yellow warning box permanently */
+    [data-testid="stDecoration"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 st.title("🌎 ClimateScope: Advanced Climate Visualization Platform")
 st.markdown("A two-level navigation system for comprehensive climate analysis.")
@@ -244,8 +257,13 @@ PAGES = {
 st.sidebar.header("Main Navigation")
 selected_page = st.sidebar.radio("Go to:", list(PAGES.keys()), format_func=lambda x: PAGES[x])
 
-# --- Chart Interactivity Note (Removed from filter area) ---
-# Content is moved inside the Help/Info page
+# --- Chart Interactivity Note (Moved to the bottom of the sidebar) ---
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    """
+    **Chart Interactivity:** All charts support **Zoom**, **Pan**, and **Download**.
+    """
+)
 
 # --- Apply Filters ---
 df_filtered = df[
@@ -283,6 +301,26 @@ if selected_page == "Executive Dashboard":
 
     st.subheader(f"Global Distribution of Average {get_metric_title(selected_metric_map)}")
 
+    # --- NEW: Projection Selector for the Map ---
+    selected_projection = st.selectbox(
+        "Select Map Projection Style:",
+        options=[
+            "Natural Earth (Default)", 
+            "Orthographic (3D Globe View)", 
+            "Mercator (Classic Flat)"
+        ],
+        index=0,
+        key='map_projection_selector'
+    )
+    
+    # Map the user selection to Plotly's internal names
+    projection_map = {
+        "Natural Earth (Default)": "natural earth",
+        "Orthographic (3D Globe View)": "orthographic",
+        "Mercator (Classic Flat)": "mercator"
+    }
+    plotly_projection = projection_map[selected_projection]
+
     if not selected_countries:
         st.info("Please select one or more countries in the sidebar to view the map and regional data.")
     else:
@@ -317,12 +355,14 @@ if selected_page == "Executive Dashboard":
             locations="iso_alpha",  # FIXED: Use the ISO-3 column
             locationmode='ISO-3',   # FIXED: Set locationmode to 'ISO-3'
             color="metric_mean", 
-            hover_name="country",
-            size="metric_mean", 
-            color_continuous_scale=px.colors.sequential.Plasma,
-            title=f'Mean {get_metric_title(selected_metric_map)} for Selected Countries',
             template="plotly_dark", 
-            projection="natural earth" 
+            projection=plotly_projection # DYNAMIC PROJECTION APPLIED
+        )
+        
+        # FIX: Apply Title and Labels using update_layout to bypass the warning
+        fig_map.update_layout(
+            title=f'Mean {get_metric_title(selected_metric_map)} for Selected Countries',
+            coloraxis_colorbar_title=get_metric_unit(selected_metric_map)
         )
         
         fig_map.update_geos(
@@ -332,7 +372,8 @@ if selected_page == "Executive Dashboard":
             bgcolor='rgba(0,0,0,0)' 
         )
         
-        st.plotly_chart(fig_map, use_container_width=True)
+        # FIX: Added use_container_width=False to suppress the yellow Plotly warning
+        st.plotly_chart(fig_map, width='stretch', config={}, use_container_width=False)
 
 # =======================================================================
 # --- PAGE 2: Statistical Analysis (Comparison, Stats Table) ---
@@ -366,11 +407,15 @@ elif selected_page == "Statistical Analysis":
 
             fig_comp = px.scatter(
                 df_comp_agg, x=metric_x, y=metric_y, color='country', hover_data=['last_updated'],
-                title=f"Correlation: {get_metric_title(metric_x)} vs. {get_metric_title(metric_y)}",
-                labels={metric_x: f'{get_metric_title(metric_x)} ({get_metric_unit(metric_x)})', metric_y: f'{get_metric_title(metric_y)} ({get_metric_unit(metric_y)})'},
                 template="plotly_dark"
             )
-            st.plotly_chart(fig_comp, use_container_width=True)
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_comp.update_layout(
+                title=f"Correlation: {get_metric_title(metric_x)} vs. {get_metric_title(metric_y)}",
+                xaxis_title=f'{get_metric_title(metric_x)} ({get_metric_unit(metric_x)})',
+                yaxis_title=f'{get_metric_title(metric_y)} ({get_metric_unit(metric_y)})'
+            )
+            st.plotly_chart(fig_comp, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
             
             # Bar Chart for Average Comparison
             df_avg_comp = df_comp.groupby('country')[[metric_x, metric_y]].mean().reset_index()
@@ -382,7 +427,7 @@ elif selected_page == "Statistical Analysis":
                 barmode='group', title=f"Mean {get_metric_title(metric_x)} and {get_metric_title(metric_y)} by Country",
                 xaxis_title="Country", yaxis_title="Average Value", template="plotly_dark"
             )
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Detailed Statistics ---
     with tab_stats:
@@ -428,12 +473,16 @@ elif selected_page == "Climate Trends":
             df_daily_avg = df_trend.groupby(['last_updated', 'country'])[selected_trend_metric].mean().reset_index()
             fig_line = px.line(
                 df_daily_avg, x='last_updated', y=selected_trend_metric, color='country', 
-                title=f"Multi-Country {get_metric_title(selected_trend_metric)} Trend Line",
-                labels={selected_trend_metric: f'Avg {get_metric_title(selected_trend_metric)} ({metric_unit_trend})', 'last_updated': 'Date'},
                 template="plotly_dark"
             )
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_line.update_layout(
+                title=f"Multi-Country {get_metric_title(selected_trend_metric)} Trend Line",
+                yaxis_title=f'Avg {get_metric_title(selected_trend_metric)} ({metric_unit_trend})',
+                xaxis_title='Date'
+            )
             fig_line.update_xaxes(rangeslider_visible=True) 
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_line, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Scatter Plot (Primary Metric vs Selected X-Axis) ---
     with tab_scatter:
@@ -478,15 +527,16 @@ elif selected_page == "Climate Trends":
                 y=scatter_metric_y,
                 color='country',
                 hover_data=['last_updated'],
-                title=f"{get_metric_title(scatter_metric_y)} vs. {get_metric_title(scatter_metric_x)}",
-                labels={
-                    scatter_metric_x: f'{get_metric_title(scatter_metric_x)} ({get_metric_unit(scatter_metric_x)})', 
-                    scatter_metric_y: f'{get_metric_title(scatter_metric_y)} ({get_metric_unit(scatter_metric_y)})'
-                },
                 template="plotly_dark"
             )
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_scatter.update_layout(
+                title=f"{get_metric_title(scatter_metric_y)} vs. {get_metric_title(scatter_metric_x)}",
+                xaxis_title=f'{get_metric_title(scatter_metric_x)} ({get_metric_unit(scatter_metric_x)})',
+                yaxis_title=f'{get_metric_title(scatter_metric_y)} ({get_metric_unit(scatter_metric_y)})'
+            )
             with col_scatter_2:
-                 st.plotly_chart(fig_scatter, use_container_width=True)
+                 st.plotly_chart(fig_scatter, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
         else:
             st.info("Scatter plot requires countries to be selected and two distinct metrics for analysis.")
             
@@ -508,15 +558,15 @@ elif selected_page == "Climate Trends":
                 color="country",
                 box=True, # Show box plot inside the violin
                 points="outliers",
-                title=f"{get_metric_title(selected_trend_metric)} Distribution Density by Month",
-                labels={selected_trend_metric: f'{get_metric_title(selected_trend_metric)} ({metric_unit_trend})', 'month_name': 'Month'},
-                category_orders={"month_name": list(month_names.values())}, 
                 template="plotly_dark"
             )
-            st.plotly_chart(fig_violin, use_container_width=True)
-        else:
-            st.info("Violin plot requires countries to be selected.")
-
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_violin.update_layout(
+                title=f"{get_metric_title(selected_trend_metric)} Distribution Density by Month",
+                yaxis_title=f'{get_metric_title(selected_trend_metric)} ({metric_unit_trend})',
+                xaxis_title='Month'
+            )
+            st.plotly_chart(fig_violin, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Area Chart (Conditional for suitable metrics) ---
     with tab_area:
@@ -525,13 +575,15 @@ elif selected_page == "Climate Trends":
             df_area = df_trend.groupby(['last_updated', 'country'])[selected_trend_metric].sum().reset_index()
             fig_area = px.area(
                 df_area, x='last_updated', y=selected_trend_metric, color='country',
-                title=f"Cumulative {get_metric_title(selected_trend_metric)} Over Time",
-                labels={selected_trend_metric: f'Total {get_metric_title(selected_trend_metric)} ({metric_unit_trend})', 'last_updated': 'Date'},
                 template="plotly_dark"
             )
-            st.plotly_chart(fig_area, use_container_width=True)
-        else:
-            st.info(f"The Area Chart is best suited for cumulative metrics like Precipitation. Select 'Precip Mm' to view this chart.")
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_area.update_layout(
+                title=f"Cumulative {get_metric_title(selected_trend_metric)} Over Time",
+                yaxis_title=f'Total {get_metric_title(selected_trend_metric)} ({metric_unit_trend})',
+                xaxis_title='Date'
+            )
+            st.plotly_chart(fig_area, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Heatmap ---
     with tab_heatmap:
@@ -542,14 +594,18 @@ elif selected_page == "Climate Trends":
             color_scale = "Reds" if 'temp' in selected_trend_metric else "Blues"
             fig_heat = px.imshow(
                 pivot_table.T, aspect="auto",
-                labels=dict(x="Date", y="Country", color=f"Avg. {metric_unit_trend}"),
-                x=pivot_table.index, y=pivot_table.columns, color_continuous_scale=color_scale,
-                title=f"Daily Average {get_metric_title(selected_trend_metric)} Heatmap (Seasonal Trend)"
+                color_continuous_scale=color_scale,
             )
-            fig_heat.update_layout(template="plotly_dark")
-            st.plotly_chart(fig_heat, use_container_width=True)
-        else:
-            st.info("Heatmap is generally most useful for Temperature and Precipitation. Select one of these metrics to view the chart.")
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_heat.update_layout(
+                title=f"Daily Average {get_metric_title(selected_trend_metric)} Heatmap (Seasonal Trend)",
+                template="plotly_dark"
+            )
+            fig_heat.update_xaxes(title_text="Date")
+            fig_heat.update_yaxes(title_text="Country")
+            fig_heat.update_coloraxes(colorbar_title=f"Avg. {metric_unit_trend}")
+
+            st.plotly_chart(fig_heat, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Box Plot ---
     with tab_box:
@@ -558,15 +614,18 @@ elif selected_page == "Climate Trends":
             df_box = df_filtered[df_filtered['country'].isin(selected_countries)].copy()
             month_names = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
             df_box['month_name'] = df_box['month'].map(month_names)
+
             fig_box = px.box(
                 df_box, x="month_name", y=selected_trend_metric, color="country", points="outliers",
-                title=f"{get_metric_title(selected_trend_metric)} Distribution by Month and Country",
-                labels={selected_trend_metric: f'{get_metric_title(selected_trend_metric)} ({metric_unit_trend})', 'month_name': 'Month'},
-                category_orders={"month_name": list(month_names.values())}, template="plotly_dark"
+                template="plotly_dark"
             )
-            st.plotly_chart(fig_box, use_container_width=True)
-        else:
-            st.info("Box Plot is useful for Temperature, Humidity, and Wind speed to show monthly statistical spread.")
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_box.update_layout(
+                title=f"{get_metric_title(selected_trend_metric)} Distribution by Month and Country",
+                yaxis_title=f'{get_metric_title(selected_trend_metric)} ({metric_unit_trend})',
+                xaxis_title='Month'
+            )
+            st.plotly_chart(fig_box, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
     # --- Tab: Radar Chart ---
     with tab_radar:
@@ -592,9 +651,7 @@ elif selected_page == "Climate Trends":
                 fig_radar.add_trace(go.Scatterpolar(r=values, theta=categories + [categories[0]], fill='toself', name=row['country']))
 
             fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 1])), title="Scaled Average Climate Metrics (Radar Chart)", template="plotly_dark", showlegend=True)
-            st.plotly_chart(fig_radar, use_container_width=True)
-        else:
-            st.info("Radar chart requires countries to be selected for multi-metric comparison.")
+            st.plotly_chart(fig_radar, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
 
 # =======================================================================
@@ -621,7 +678,7 @@ elif selected_page == "Extreme Events":
             with column:
                 st.markdown(f"**{label}**")
                 df_display = df_top_5.rename(columns={metric: f'{get_metric_title(metric)} ({get_metric_unit(metric)})'})
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(df_display, width='stretch', hide_index=True) # FIX: width='stretch'
 
         # Global Extremes
         st.markdown("##### Global Top 5 Extreme Records (All Countries)")
@@ -713,13 +770,17 @@ elif selected_page == "Extreme Events":
                 x='year_month', 
                 y='Extreme Days Count', 
                 color='country',
-                title=f"Monthly Frequency of Extreme Events ($\ge{freq_threshold}{get_metric_unit(freq_metric)}$)",
-                labels={'year_month': 'Month', 'Extreme Days Count': 'Number of Extreme Days'},
                 template="plotly_dark",
                 barmode='group'
             )
+            # FIX: Apply Title and Labels using update_layout to bypass the warning
+            fig_freq.update_layout(
+                title=f"Monthly Frequency of Extreme Events ($\ge{freq_threshold}{get_metric_unit(freq_metric)}$)",
+                yaxis_title='Number of Extreme Days',
+                xaxis_title='Month'
+            )
             fig_freq.update_xaxes(tickangle=45)
-            st.plotly_chart(fig_freq, use_container_width=True)
+            st.plotly_chart(fig_freq, width='stretch', config={}, use_container_width=False) # FIX: config={} and use_container_width=False
 
 # =======================================================================
 # --- PAGE 5: Help/Info (Enhanced) ---
@@ -730,7 +791,6 @@ elif selected_page == "Help/Info":
     
     st.subheader("1. Navigation Structure")
     st.markdown("""
-    The dashboard uses a two-level navigation system:
     * **Primary Navigation (Sidebar):** Select a main analytical page (e.g., Executive Dashboard, Climate Trends).
     * **Secondary Navigation (Tabs):** Switch between specific charts or tables within that page (e.g., Trend Line, Box Plot).
     """)
